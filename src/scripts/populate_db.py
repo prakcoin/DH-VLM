@@ -1,12 +1,15 @@
 import os
 import csv
 import psycopg2
+from pathlib import Path
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
 load_dotenv()
 
-LOOKS_CSV_PATH = os.getenv("LOOKS_CSV_PATH")
-PIECES_CSV_PATH = os.getenv("PIECES_CSV_PATH")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+LOOKS_CSV_PATH = PROJECT_ROOT / os.getenv("LOOKS_CSV_PATH")
+PIECES_CSV_PATH = PROJECT_ROOT / os.getenv("PIECES_CSV_PATH")
 
 S3_BUCKET = os.getenv("S3_BUCKET_NAME")
 
@@ -23,9 +26,13 @@ def get_connection():
 def create_tables(conn):
     with conn.cursor() as cur:
         cur.execute("""
+            CREATE EXTENSION IF NOT EXISTS vector;
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS looks (
                 look_number TEXT PRIMARY KEY,
-                image_path   TEXT NOT NULL
+                image_path  TEXT NOT NULL
             );
         """)
 
@@ -38,6 +45,8 @@ def create_tables(conn):
                 category    TEXT,
                 subcategory TEXT,
                 notes       TEXT,
+                embedding   VECTOR(768),
+
                 CONSTRAINT fk_look
                     FOREIGN KEY (look_number)
                     REFERENCES looks (look_number)
