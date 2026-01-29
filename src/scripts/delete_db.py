@@ -15,11 +15,10 @@ TARGET_DB = os.getenv("DB_NAME")
 
 def full_reset_database():
     conn = psycopg2.connect(**ADMIN_DB_CONFIG)
-    conn.autocommit = True  # REQUIRED
+    conn.autocommit = True 
 
     try:
         with conn.cursor() as cur:
-            # Kill active connections
             cur.execute("""
                 SELECT pg_terminate_backend(pid)
                 FROM pg_stat_activity
@@ -27,7 +26,6 @@ def full_reset_database():
                   AND pid <> pg_backend_pid();
             """, (TARGET_DB,))
 
-            # Drop and recreate
             cur.execute(f'DROP DATABASE IF EXISTS "{TARGET_DB}";')
             cur.execute(f'CREATE DATABASE "{TARGET_DB}";')
 
@@ -35,6 +33,6 @@ def full_reset_database():
 
     finally:
         conn.close()
-        
+
 if __name__ == "__main__":
     full_reset_database()
