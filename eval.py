@@ -8,14 +8,14 @@ load_dotenv()
 REGION = os.getenv("AWS_REGION")
 KB_ID = os.getenv("KB_ID")
 ROLE_ARN = os.getenv("ROLE_ARN")
-DATASET_S3_URI = os.getenv("DATASET_S3_URI")
-OUTPUT_S3_URI = os.getenv("OUTPUT_S3_URI")
+DATASET_S3_URI = os.getenv("EVAL_DATASET_S3_URI")
+OUTPUT_S3_URI = os.getenv("EVAL_OUTPUT_S3_URI")
 
 client = boto3.client("bedrock", region_name=REGION)
 
-def create_eval_job():
+def create_eval_job(name):
     job_response = client.create_evaluation_job(
-        jobName="aw04-rag-eval",
+        jobName=name,
         jobDescription="Retrieve-and-generate evaluation for aw04-agent",
         applicationType="RagEvaluation",
         roleArn=ROLE_ARN,
@@ -90,7 +90,7 @@ def wait_for_completion(job_response):
         time.sleep(30)
 
 if __name__ == "__main__":
-    job_arn = create_eval_job()
+    job_arn = create_eval_job("aw04-rag-eval-2")
     print("Started evaluation job:", job_arn)
 
     final_job = wait_for_completion(job_arn)
