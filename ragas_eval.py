@@ -1,12 +1,14 @@
 import boto3
 import os
 import uuid
-from openai import OpenAI
-from ragas.llms import llm_factory
-from ragas.metrics import ContextPrecision, Faithfulness
+import time
+import json
+from langchain_aws import ChatBedrock
+from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import FactualCorrectness, ToolCallAccuracy, ToolCallF1
 from ragas.dataset_schema import SingleTurnSample, MultiTurnSample, EvaluationDataset
 from ragas.integrations.amazon_bedrock import convert_to_ragas_messages
-from ragas.messages import HumanMessage
+from ragas.messages import ToolCall
 from ragas import evaluate
 from dotenv import load_dotenv
 
@@ -15,7 +17,11 @@ client = boto3.client("bedrock-agent-runtime")
 agent_id = os.getenv("AGENT_ID")
 alias_id = os.getenv("ALIAS_ID")
 
-evaluator_llm = llm_factory('gpt-4o-mini', client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
+model_id = "us.amazon.nova-pro-v1:0"
+region_name = "us-east-1"
+
+bedrock_llm = ChatBedrock(model_id=model_id, region_name=region_name)
+evaluator_llm = LangchainLLMWrapper(bedrock_llm)
 
 def invokeAgent(query, session_id, session_state=dict()):
     end_session: bool = False
@@ -48,70 +54,54 @@ def invokeAgent(query, session_id, session_state=dict()):
     except Exception as e:
         raise Exception("unexpected event.", e)
 
-EVAL_DATA = [
-    {
-        "query": "What does look 1 consist of?",
-        "reference": "Look 1 consists of a 1B blazer, a leather tie, a pinstripe shirt, trousers, suede moto boots, aviator sunglasses, a leather belt, and a bandana bracelet."
-    },
-    {
-        "query": "What is the reference code for the beetle leather jacket?",
-        "reference": "The reference code for the beetle leather jacket is 4HH5041101."
-    },
-    {
-        "query": "What material is the jacket in look 2 made from?",
-        "reference": "The jacket in look 2 is made from leather, more specifically calfskin."
-    },
-    {
-        "query": "What type of jacket is featured in look 28?",
-        "reference": "Look 28 features a belted blazer."
-    },
-    {
-        "query": "Does look 17 include any accessories?",
-        "reference": "Yes. Look 17 includes a single-split scarf, a leather belt, a suede messenger bag, and a bandana bracelet."
-    },
-    {
-        "query": "Besides the standard reference code, what are the alternative codes for the whiskered trousers?",
-        "reference": "Alternative reference codes for the whiskered trousers include 4SH1016284 and 4SH1016684, where the 4SH prefix denotes pre-fall."
-    },
-    {
-        "query": "Which look features the beetle leather vest?",
-        "reference": "The beetle leather vest is featured in Look 43."
-    },
-    {
-        "query": "What is unique about the design and inseam of the whiskered trousers?",
-        "reference": "The whiskered trousers feature a whiskering effect near the crotch and pockets, and unlike other trousers in the collection, they have an extended inseam similar to standard Dior Homme jeans."
-    }
-]
+with open('eval.json', 'r') as f:
+    EVAL_DATA = json.load(f)
 
-samples = []
+multi_samples = []
+single_samples = []
 
 for item in EVAL_DATA:
     query = item["query"]
     reference = item["reference"]
     
     agent_answer, traces = invokeAgent(query, str(uuid.uuid4()))
-    
-    retrieved_contexts = []
-    for trace in traces:
-        if "orchestrationTrace" in trace:
-            orch = trace["orchestrationTrace"]
-            if "knowledgeBaseLookupOutput" in orch:
-                for ref in orch["knowledgeBaseLookupOutput"].get("retrievedReferences", []):
-                    retrieved_contexts.append(ref["content"]["text"])
-    
-    samples.append(SingleTurnSample(
-        user_input=query,
+    ragas_messages = convert_to_ragas_messages(traces)
+    ref_tool_calls = [
+        ToolCall(name=tool["name"], args=tool["args"]) 
+        for tool in item.get("expected_tools", [])
+    ]
+
+    single_samples.append(SingleTurnSample(
         response=agent_answer,
         reference=reference,
-        retrieved_contexts=retrieved_contexts
     ))
 
-dataset = EvaluationDataset(samples=samples)
+    multi_samples.append(MultiTurnSample(
+        user_input=ragas_messages,
+        response=agent_answer,
+        reference=reference,
+        reference_tool_calls=ref_tool_calls
+    ))
+    print("Query: ", query)
+    print("Ground Truth: ", reference)
+    print("Agent Answer: ", agent_answer)
+    time.sleep(2.5)    
 
-# Run evaluation
-result = evaluate(
-    dataset=dataset,
-    metrics=[ContextPrecision(llm=evaluator_llm), Faithfulness(llm=evaluator_llm)],
+multi_dataset = EvaluationDataset(samples=multi_samples)
+single_dataset = EvaluationDataset(samples=single_samples)
+
+single_result = evaluate(
+    dataset=single_dataset,
+    metrics=[FactualCorrectness(llm=evaluator_llm)],
 )
 
-print(result.to_pandas())
+multi_result = evaluate(
+    dataset=multi_dataset,
+    metrics=[ToolCallAccuracy(), ToolCallF1()],
+)
+
+single_df = single_result.to_pandas()
+single_df.to_csv("single_results.csv", index=False)
+multi_df = multi_result.to_pandas()
+multi_df.to_csv("multi_results.csv", index=False)
+print("Results saved")
