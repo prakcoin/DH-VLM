@@ -2,3 +2,6 @@
 .env
 __pycache__/
 *.json
+*.csv
+datasets/
+results/

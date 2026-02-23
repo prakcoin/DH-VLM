@@ -90,7 +90,7 @@ def wait_for_completion(job_response):
         time.sleep(30)
 
 if __name__ == "__main__":
-    job_arn = create_eval_job("aw04-rag-eval-2")
+    job_arn = create_eval_job("rag-eval")
     print("Started evaluation job:", job_arn)
 
     final_job = wait_for_completion(job_arn)

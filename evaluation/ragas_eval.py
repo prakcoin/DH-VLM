@@ -82,9 +82,6 @@ for item in EVAL_DATA:
         reference=reference,
         reference_tool_calls=ref_tool_calls
     ))
-    print("Query: ", query)
-    print("Ground Truth: ", reference)
-    print("Agent Answer: ", agent_answer)
     time.sleep(2.5)    
 
 multi_dataset = EvaluationDataset(samples=multi_samples)
@@ -100,8 +97,10 @@ multi_result = evaluate(
     metrics=[ToolCallAccuracy(), ToolCallF1()],
 )
 
+os.makedirs("results", exist_ok=True)
+
 single_df = single_result.to_pandas()
-single_df.to_csv("single_results.csv", index=False)
+single_df.to_csv("results/single_results.csv", index=False)
 multi_df = multi_result.to_pandas()
-multi_df.to_csv("multi_results.csv", index=False)
+multi_df.to_csv("results/multi_results.csv", index=False)
 print("Results saved")
