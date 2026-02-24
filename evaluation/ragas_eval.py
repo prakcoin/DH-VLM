@@ -1,14 +1,13 @@
 import boto3
 import os
 import uuid
-import time
 import json
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrock, BedrockEmbeddings
+from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
     FactualCorrectness, 
     ToolCallAccuracy, 
-    ToolCallF1, 
     TopicAdherenceScore, 
     AgentGoalAccuracyWithoutReference, 
     SemanticSimilarity
@@ -26,6 +25,13 @@ agent_id = os.getenv("AGENT_ID")
 alias_id = os.getenv("ALIAS_ID")
 bedrock_llm = ChatBedrock(model_id="us.amazon.nova-pro-v1:0", region_name="us-east-1")
 evaluator_llm = LangchainLLMWrapper(bedrock_llm)
+
+bedrock_embeddings = BedrockEmbeddings(
+    model_id="amazon.nova-2-multimodal-embeddings-v1:0",
+    region_name="us-east-1"
+)
+
+embeddings = LangchainEmbeddingsWrapper(bedrock_embeddings)
 
 EVAL_MODE = "general"
 INPUT_FILE = f"datasets/eval_{EVAL_MODE}.json"
@@ -59,19 +65,21 @@ metrics_config = {
         "multi": [ToolCallAccuracy()]
     },
     "aggregation": {
-        "multi": [AgentGoalAccuracyWithoutReference(llm=evaluator_llm)]
+        "multi": [AgentGoalAccuracyWithoutReference(llm=evaluator_llm), ToolCallAccuracy()]
     },
-    # "followups": {
-    #     "single": [TopicAdherenceScore(llm=evaluator_llm)],
-    #     "multi": [ToolCallF1()]
-    # },
-    # "vqa": {
-    #     "single": [SemanticSimilarity(llm=evaluator_llm)],
-    #     "multi": [ToolCallAccuracy()]
-    # },
+    "followups": {
+        "multi": [TopicAdherenceScore(llm=evaluator_llm, mode="precision"), ToolCallAccuracy()]
+    },
+    "vqa": {
+        "single": [SemanticSimilarity(embeddings=embeddings)],
+        "multi": [ToolCallAccuracy()]
+    },
     "outofscope": {
         "multi": [AgentGoalAccuracyWithoutReference(llm=evaluator_llm), ToolCallAccuracy()] 
-    }
+    },
+    # "search": {
+    #     "multi": [TopicAdherenceScore(llm=evaluator_llm, mode="precision"), ToolCallAccuracy()] 
+    # }
 }
 
 mode_metrics = metrics_config.get(EVAL_MODE)
@@ -79,46 +87,53 @@ mode_metrics = metrics_config.get(EVAL_MODE)
 single_samples = []
 multi_samples = []
 
-for item in EVAL_DATA:
-    query = item["query"]
-    reference = item["reference"]
+for conversation in EVAL_DATA:
+    session_id = str(uuid.uuid4())
     
-    session_id = item.get("session_id", str(uuid.uuid4()))
-    
-    agent_answer, traces = invokeAgent(query, session_id)
-    ragas_messages = convert_to_ragas_messages(traces)
-    
-    if mode_metrics["single"]:
-        single_samples.append(SingleTurnSample(
-            user_input=query,
-            response=agent_answer,
-            reference=reference
-        ))
+    conversation_history = []
 
-    ref_tool_calls = [
-        ToolCall(name=tool["name"], args=tool["args"]) 
-        for tool in item.get("expected_tools", [])
-    ]
+    for turn in conversation.get("turns", []):
+        query = turn["query"]
+        reference = turn["reference"]
+        expected_tools = turn.get("expected_tools", [])
+        topics = turn.get("reference_topics", []) 
+        
+        agent_answer, traces = invokeAgent(query, session_id)
+        
+        current_turn_messages = convert_to_ragas_messages(traces)
+        conversation_history.extend(current_turn_messages)
 
-    if mode_metrics["multi"]:
-        multi_samples.append(MultiTurnSample(
-            user_input=ragas_messages,
-            response=agent_answer,
-            reference=reference,
-            reference_tool_calls=ref_tool_calls
-        ))
-    
-    print(f"[{EVAL_MODE}] Ran query: {query[:40]}...")
-    time.sleep(2.5)
+        if mode_metrics.get("single"):
+            single_samples.append(SingleTurnSample(
+                user_input=query,
+                response=agent_answer,
+                reference=reference
+            ))
+
+        if mode_metrics.get("multi"):
+            ref_tool_calls = [
+                ToolCall(name=tool["name"], args=tool["args"]) 
+                for tool in expected_tools
+            ]
+
+            multi_samples.append(MultiTurnSample(
+                user_input=conversation_history.copy(),
+                response=agent_answer,
+                reference=reference,
+                reference_tool_calls=ref_tool_calls,
+                reference_topics=topics
+            ))
+        
+        print(f"[{EVAL_MODE}] Ran turn: {query[:40]}...")
 
 os.makedirs("results", exist_ok=True)
 
-if mode_metrics["single"]:
+if mode_metrics.get("single"):
     single_ds = EvaluationDataset(samples=single_samples)
     res_single = evaluate(dataset=single_ds, metrics=mode_metrics["single"])
     res_single.to_pandas().to_csv(f"results/{EVAL_MODE}_single_results.csv", index=False)
 
-if mode_metrics["multi"]:
+if mode_metrics.get("multi"):
     multi_ds = EvaluationDataset(samples=multi_samples)
     res_multi = evaluate(dataset=multi_ds, metrics=mode_metrics["multi"])
     res_multi.to_pandas().to_csv(f"results/{EVAL_MODE}_multi_results.csv", index=False)
