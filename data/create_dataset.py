@@ -4,12 +4,18 @@ import base64
 import os
 import pandas as pd
 from collections import defaultdict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 MODEL_ID = "amazon.nova-pro-v1:0"
 IMAGE_DIR = "./images"
 OUTPUT_CSV = "pieces.csv"
 
-bedrock = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
+bedrock = boto3.client(service_name="bedrock-runtime", 
+                       region_name="us-east-1",
+                       aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                       aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),)
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -29,7 +35,9 @@ def analyze_look(look_id, image_paths):
         content.append({
             "image": {
                 "format": "jpeg",
-                "bytes": encode_image(path)
+                "source": {
+                    "bytes": encode_image(path)
+                }
             }
         })
     
@@ -53,7 +61,7 @@ def analyze_look(look_id, image_paths):
     "Additional Notes": ""
     """
     
-    content.append({"type": "text", "text": prompt})
+    content.append({"text": prompt})
 
     body = json.dumps({
         "inferenceConfig": {
@@ -83,7 +91,7 @@ def analyze_look(look_id, image_paths):
 all_rows = []
 groups = get_look_groups(IMAGE_DIR)
 
-for look_id, paths in groups.items():
+for look_id, paths in list(groups.items())[:3]:
     print(f"Processing {look_id}...")
     items = analyze_look(look_id, paths)
     for item in items:
