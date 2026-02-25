@@ -11,7 +11,7 @@ load_dotenv()
 
 MODEL_ID = "amazon.nova-pro-v1:0"
 IMAGE_DIR = "./images"
-OUTPUT_CSV = "pieces.csv"
+OUTPUT_DIR = "./labels"
 
 bedrock = boto3.client(service_name="bedrock-runtime", 
                        region_name="us-east-1",
@@ -99,17 +99,28 @@ def analyze_look(look_id, image_paths):
     except Exception as e:
         print(f"Error parsing JSON for {look_id}:", e)
         return []
+    
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-all_rows = []
 groups = get_look_groups(IMAGE_DIR)
 
-for look_id, paths in list(groups.items())[:3]:
-    print(f"Processing {look_id}...")
+for look_id, paths in groups.items():
+    print(f"Processing Look {look_id}...")
+    
     items = analyze_look(look_id, paths)
-    for item in items:
-        item["Images"] = ", ".join([os.path.basename(p) for p in paths])
-        all_rows.append(item)
+    
+    if items:
+        for item in items:
+            item["Images"] = ", ".join([os.path.basename(p) for p in paths])
+        
+        df_look = pd.DataFrame(items)
+        
+        file_name = f"look{look_id}.csv"
+        file_path = os.path.join(OUTPUT_DIR, file_name)
+        
+        df_look.to_csv(file_path, index=False)
+        print(f"Saved: {file_path}")
+    else:
+        print(f"No items found or error for Look {look_id}")
 
-df = pd.DataFrame(all_rows)
-df.to_csv(OUTPUT_CSV, index=False)
-print(f"Done. Data saved to {OUTPUT_CSV}")
+print("Initial data creation complete.")
