@@ -103,7 +103,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 groups = get_look_groups(IMAGE_DIR)
 
-for look_id, paths in groups.items():
+for look_id, paths in list(groups.items())[:3]:
     print(f"Processing Look {look_id}...")
     items = analyze_look(look_id, paths)
     

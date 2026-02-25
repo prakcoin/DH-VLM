@@ -6,3 +6,5 @@ __pycache__/
 datasets/
 results/
 images/
+labels/
+data/
