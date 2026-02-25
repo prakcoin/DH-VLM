@@ -61,7 +61,6 @@ def analyze_look(look_id, image_paths):
     Each object must use these exact keys:
     "Name": (A concise, distinct name. Priority: [Material (Only include if it is a defining characteristic or unconventional for the item.)] [Misc Identifier] [Item Type]. Examples: "Leather Studded Belt", "Eye Graphic T-Shirt", "Rust Denim".),
     "Reference Code": "Not available",
-    "Look Number": "{look_id}",
     "Category": (Must be one of: Accessories, Bottom, Footwear, Outerwear, Top),
     "Subcategory": (e.g., T-Shirt, Belt, Jeans),
     "Primary Color": (Dominant color),
@@ -106,21 +105,25 @@ groups = get_look_groups(IMAGE_DIR)
 
 for look_id, paths in groups.items():
     print(f"Processing Look {look_id}...")
-    
     items = analyze_look(look_id, paths)
     
     if items:
+        image_list_str = ", ".join([os.path.basename(p) for p in paths])
+        
         for item in items:
-            item["Images"] = ", ".join([os.path.basename(p) for p in paths])
+            item["Look Number"] = look_id
+            item["Images"] = image_list_str
+        
+        cols = ["Name", "Reference Code", "Look Number", "Category", "Subcategory", 
+                "Primary Color", "Secondary Color(s)", "Pattern", "Primary Outer Material", 
+                "Secondary Outer Material(s)", "Additional Notes", "Images"]
         
         df_look = pd.DataFrame(items)
         
-        file_name = f"look{look_id}.csv"
-        file_path = os.path.join(OUTPUT_DIR, file_name)
+        df_look = df_look[[c for c in cols if c in df_look.columns]]
         
+        file_path = os.path.join(OUTPUT_DIR, f"look{look_id}.csv")
         df_look.to_csv(file_path, index=False)
         print(f"Saved: {file_path}")
-    else:
-        print(f"No items found or error for Look {look_id}")
 
 print("Initial data creation complete.")
