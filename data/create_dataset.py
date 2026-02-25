@@ -55,7 +55,7 @@ def analyze_look(look_id, image_paths):
     
     prompt = f"""
     Analyze the runway look in these images for {look_id}. 
-    Identify every distinct piece of clothing and accessory worn by the model. 
+    Identify every distinct piece of clothing and accessory worn by the model visible within the look images. 
     Return a single JSON list of objects. Each distinct piece of clothing or accessory worn by the model (e.g., the jacket, shirt, trousers, shoes, belt) must be its own separate object in the list.
 
     Each object must use these exact keys:
