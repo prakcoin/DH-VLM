@@ -2,19 +2,15 @@ import boto3
 import os
 import uuid
 import json
+import pandas as pd
 from langchain_aws import ChatBedrock, BedrockEmbeddings
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
     FactualCorrectness, 
-    ToolCallAccuracy, 
-    TopicAdherenceScore, 
-    AgentGoalAccuracyWithoutReference, 
     SemanticSimilarity
 )
-from ragas.dataset_schema import SingleTurnSample, MultiTurnSample, EvaluationDataset
-from ragas.integrations.amazon_bedrock import convert_to_ragas_messages
-from ragas.messages import ToolCall
+from ragas.dataset_schema import SingleTurnSample, EvaluationDataset
 from ragas import evaluate
 from dotenv import load_dotenv
 
@@ -33,109 +29,82 @@ bedrock_embeddings = BedrockEmbeddings(
 
 embeddings = LangchainEmbeddingsWrapper(bedrock_embeddings)
 
-EVAL_MODE = "general"
+EVAL_MODE = "outofscope"
 INPUT_FILE = f"datasets/eval_{EVAL_MODE}.json"
 
 def invokeAgent(query, session_id, session_state=dict()):
+    end_session: bool = False
+
     agentResponse = client.invoke_agent(
         inputText=query,
         agentId=agent_id,
         agentAliasId=alias_id,
         sessionId=session_id,
         enableTrace=True,
-        endSession=False,
+        endSession=end_session,
         sessionState=session_state,
     )
+
     event_stream = agentResponse["completion"]
-    traces = []
-    agent_answer = ""
-    for event in event_stream:
-        if "chunk" in event:
-            agent_answer = event["chunk"]["bytes"].decode("utf8")
-        elif "trace" in event:
-            traces.append(event["trace"])
-    return agent_answer, traces
+    try:
+        traces = []
+        for event in event_stream:
+            if "chunk" in event:
+                data = event["chunk"]["bytes"]
+                agent_answer = data.decode("utf8")
+                end_event_received = True
+                return agent_answer, traces
+            elif "trace" in event:
+                traces.append(event["trace"])
+            else:
+                raise Exception("unexpected event.", event)
+        return agent_answer, traces
+    except Exception as e:
+        raise Exception("unexpected event.", e)
 
 with open(INPUT_FILE, 'r') as f:
     EVAL_DATA = json.load(f)
 
 metrics_config = {
-    "general": {
-        "single": [FactualCorrectness(llm=evaluator_llm)],
-        "multi": [ToolCallAccuracy()]
-    },
-    "aggregation": {
-        "multi": [AgentGoalAccuracyWithoutReference(llm=evaluator_llm), ToolCallAccuracy()]
-    },
-    "followups": {
-        "multi": [TopicAdherenceScore(llm=evaluator_llm, mode="precision"), ToolCallAccuracy()]
-    },
-    "vqa": {
-        "single": [SemanticSimilarity(embeddings=embeddings)],
-        "multi": [ToolCallAccuracy()]
-    },
-    "outofscope": {
-        "multi": [AgentGoalAccuracyWithoutReference(llm=evaluator_llm), ToolCallAccuracy()] 
-    },
-    # "search": {
-    #     "multi": [TopicAdherenceScore(llm=evaluator_llm, mode="precision"), ToolCallAccuracy()] 
-    # }
+    "general": [FactualCorrectness(llm=evaluator_llm)],
+    "aggregation": [FactualCorrectness(llm=evaluator_llm)],
+    "vqa": [SemanticSimilarity(embeddings=embeddings)],
+    "outofscope": [FactualCorrectness(llm=evaluator_llm)],
+    "search": [SemanticSimilarity(embeddings=embeddings)]
 }
 
 mode_metrics = metrics_config.get(EVAL_MODE)
 
-single_samples = []
-multi_samples = []
+samples = []
 
 for conversation in EVAL_DATA:
     session_id = str(uuid.uuid4())
+
+    query = conversation["query"]
+    reference = conversation["reference"]
+    topics = conversation.get("reference_topics", []) 
     
-    conversation_history = []
+    agent_answer, traces = invokeAgent(query, session_id)
+    
+    samples.append(SingleTurnSample(
+        user_input=query,
+        response=agent_answer,
+        reference=reference
+    ))
 
-    for turn in conversation.get("turns", []):
-        query = turn["query"]
-        reference = turn["reference"]
-        expected_tools = turn.get("expected_tools", [])
-        topics = turn.get("reference_topics", []) 
-        
-        agent_answer, traces = invokeAgent(query, session_id)
-        
-        current_turn_messages = convert_to_ragas_messages(traces)
-        conversation_history.extend(current_turn_messages)
-
-        if mode_metrics.get("single"):
-            single_samples.append(SingleTurnSample(
-                user_input=query,
-                response=agent_answer,
-                reference=reference
-            ))
-
-        if mode_metrics.get("multi"):
-            ref_tool_calls = [
-                ToolCall(name=tool["name"], args=tool["args"]) 
-                for tool in expected_tools
-            ]
-
-            multi_samples.append(MultiTurnSample(
-                user_input=conversation_history.copy(),
-                response=agent_answer,
-                reference=reference,
-                reference_tool_calls=ref_tool_calls,
-                reference_topics=topics
-            ))
-        
-        print(f"[{EVAL_MODE}] Ran turn: {query[:40]}...")
+    print(f"[{EVAL_MODE}] Ran turn: {query[:40]}...")
 
 os.makedirs("results", exist_ok=True)
 
-if mode_metrics.get("single"):
-    single_ds = EvaluationDataset(samples=single_samples)
-    res_single = evaluate(dataset=single_ds, metrics=mode_metrics["single"])
-    res_single.to_pandas().to_csv(f"results/{EVAL_MODE}_single_results.csv", index=False)
+dataset = EvaluationDataset(samples=samples)
+results = evaluate(dataset=dataset, metrics=mode_metrics)
+results.to_pandas().to_csv(f"results/{EVAL_MODE}_results.csv", index=False)
 
-if mode_metrics.get("multi"):
-    multi_ds = EvaluationDataset(samples=multi_samples)
-    res_multi = evaluate(dataset=multi_ds, metrics=mode_metrics["multi"])
-    res_multi.to_pandas().to_csv(f"results/{EVAL_MODE}_multi_results.csv", index=False)
+df = pd.read_csv(f"results/{EVAL_MODE}_results.csv")
 
+metric_name = df.columns[-1]
+average_score = df[metric_name].mean()
+
+print(f"Metric: {metric_name}")
+print(f"Average: {average_score:.4f}")
 print(f"Done. Saved results for {EVAL_MODE}.")
