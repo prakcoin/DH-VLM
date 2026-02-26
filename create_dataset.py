@@ -105,16 +105,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 groups = get_look_groups(IMAGE_DIR)
 all_tasks = []
 
-# Processing looks (limited to 3 for your testing as per original code)
 for look_id, filenames in list(groups.items())[:3]:
     print(f"Processing Look {look_id}...")
     ai_items = analyze_look(look_id, filenames)
     
-    # Create the Label Studio local storage paths
     ls_image_paths = [f"/data/local-files/?d={IMAGE_REL_PATH}/{f}" for f in filenames]
 
     for item in ai_items:
-        # Map AI keys to your Label Studio XML keys
         data_dict = {
             "look_number": str(look_id),
             "name": item.get("Name", ""),
@@ -129,13 +126,11 @@ for look_id, filenames in list(groups.items())[:3]:
             "notes": item.get("Additional Notes", "")
         }
 
-        # Fill image slots (image_0 to image_4)
         for i in range(5):
             data_dict[f"image_{i}"] = ls_image_paths[i] if i < len(ls_image_paths) else ""
 
         all_tasks.append({"data": data_dict})
 
-# Save the final consolidated file
 with open(OUTPUT_FILE, "w") as f:
     json.dump(all_tasks, f, indent=2)
 
