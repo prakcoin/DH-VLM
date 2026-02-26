@@ -10,8 +10,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MODEL_ID = "amazon.nova-pro-v1:0"
-IMAGE_DIR = "./images"
-OUTPUT_DIR = "./labels"
+IMAGE_DIR = "data/images"
+OUTPUT_DIR = "data/labels"
+IMAGE_REL_PATH = "data/images"
+OUTPUT_FILE = "import_to_ls.json"
 
 bedrock = boto3.client(service_name="bedrock-runtime", 
                        region_name="us-east-1",
@@ -92,7 +94,6 @@ def analyze_look(look_id, image_paths):
     )
 
     response_body = json.loads(response.get("body").read())
-    print(response_body["output"]["message"]['content'][0]['text'])
     try:
         return json.loads(response_body["output"]["message"]['content'][0]['text'])
     except Exception as e:
@@ -102,28 +103,40 @@ def analyze_look(look_id, image_paths):
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 groups = get_look_groups(IMAGE_DIR)
+all_tasks = []
 
-for look_id, paths in list(groups.items())[:3]:
+# Processing looks (limited to 3 for your testing as per original code)
+for look_id, filenames in list(groups.items())[:3]:
     print(f"Processing Look {look_id}...")
-    items = analyze_look(look_id, paths)
+    ai_items = analyze_look(look_id, filenames)
     
-    if items:
-        image_list_str = ", ".join([os.path.basename(p) for p in paths])
-        
-        for item in items:
-            item["Look Number"] = look_id
-            item["Images"] = image_list_str
-        
-        cols = ["Name", "Reference Code", "Look Number", "Category", "Subcategory", 
-                "Primary Color", "Secondary Color(s)", "Pattern", "Primary Outer Material", 
-                "Secondary Outer Material(s)", "Additional Notes", "Images"]
-        
-        df_look = pd.DataFrame(items)
-        
-        df_look = df_look[[c for c in cols if c in df_look.columns]]
-        
-        file_path = os.path.join(OUTPUT_DIR, f"look{look_id}.csv")
-        df_look.to_csv(file_path, index=False)
-        print(f"Saved: {file_path}")
+    # Create the Label Studio local storage paths
+    ls_image_paths = [f"/data/local-files/?d={IMAGE_REL_PATH}/{f}" for f in filenames]
 
-print("Initial data creation complete.")
+    for item in ai_items:
+        # Map AI keys to your Label Studio XML keys
+        data_dict = {
+            "look_number": str(look_id),
+            "name": item.get("Name", ""),
+            "reference_code": item.get("Reference Code", ""),
+            "category": item.get("Category", ""),
+            "subcategory": item.get("Subcategory", ""),
+            "primary_color": item.get("Primary Color", ""),
+            "secondary_colors": item.get("Secondary Color(s)", ""),
+            "pattern": item.get("Pattern", ""),
+            "primary_outer_material": item.get("Primary Outer Material", ""),
+            "secondary_outer_materials": item.get("Secondary Outer Material(s)", ""),
+            "notes": item.get("Additional Notes", "")
+        }
+
+        # Fill image slots (image_0 to image_4)
+        for i in range(5):
+            data_dict[f"image_{i}"] = ls_image_paths[i] if i < len(ls_image_paths) else ""
+
+        all_tasks.append({"data": data_dict})
+
+# Save the final consolidated file
+with open(OUTPUT_FILE, "w") as f:
+    json.dump(all_tasks, f, indent=2)
+
+print(f"Success! Created {len(all_tasks)} tasks in {OUTPUT_FILE}")
