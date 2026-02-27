@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MODEL_ID = "amazon.nova-pro-v1:0"
-IMAGE_DIR = "data/images"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGE_DIR = os.path.join(SCRIPT_DIR, "..", "data", "images")
 
 bedrock = boto3.client(service_name="bedrock-runtime", 
                        region_name="us-east-1",
@@ -19,6 +20,11 @@ bedrock = boto3.client(service_name="bedrock-runtime",
                        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),)
 
 ls = LabelStudio(base_url=f'http://{os.getenv("LABEL_STUDIO_URL")}:{os.getenv("LABEL_STUDIO_PORT")}', api_key=os.getenv("LABEL_STUDIO_API_KEY"))
+
+"""
+export LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/home/prak/DH-VLM/
+export LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+"""
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
