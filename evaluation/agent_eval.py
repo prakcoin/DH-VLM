@@ -1,8 +1,10 @@
-import boto3
 import os
 import uuid
 import json
+import sys
 import pandas as pd
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.agent import DHAgent
 from langchain_aws import ChatBedrock, BedrockEmbeddings
 from langchain_core.messages import SystemMessage, HumanMessage
 from ragas.embeddings import LangchainEmbeddingsWrapper
@@ -17,54 +19,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = boto3.client("bedrock-agent-runtime")
-agent_id = os.getenv("AGENT_ID")
-alias_id = os.getenv("ALIAS_ID")
+agent = DHAgent()
 bedrock_llm = ChatBedrock(model_id="us.amazon.nova-pro-v1:0", region_name="us-east-1")
 evaluator_llm = LangchainLLMWrapper(bedrock_llm)
-
-bedrock_embeddings = BedrockEmbeddings(
-    model_id="amazon.nova-2-multimodal-embeddings-v1:0",
-    region_name="us-east-1"
-)
-
+bedrock_embeddings = BedrockEmbeddings(model_id="amazon.nova-2-multimodal-embeddings-v1:0", region_name="us-east-1")
 embeddings = LangchainEmbeddingsWrapper(bedrock_embeddings)
 
 EVAL_MODE = "general"
 INPUT_FILE = f"datasets/eval_{EVAL_MODE}.json"
-
-def invokeAgent(query, session_id, session_state=dict()):
-    end_session: bool = False
-
-    agentResponse = client.invoke_agent(
-        inputText=query,
-        agentId=agent_id,
-        agentAliasId=alias_id,
-        sessionId=session_id,
-        enableTrace=True,
-        endSession=end_session,
-        sessionState=session_state,
-    )
-
-    event_stream = agentResponse["completion"]
-    try:
-        traces = []
-        for event in event_stream:
-            if "chunk" in event:
-                data = event["chunk"]["bytes"]
-                agent_answer = data.decode("utf8")
-                end_event_received = True
-                return agent_answer, traces
-            elif "trace" in event:
-                traces.append(event["trace"])
-            else:
-                raise Exception("unexpected event.", event)
-        return agent_answer, traces
-    except Exception as e:
-        raise Exception("unexpected event.", e)
-
-def invokeBaseline(query):
-    baseline_system_prompt = """Role: 
+baseline_system_prompt = """Role: 
     You are the lead archival assistant for the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection. Your goal is to provide precise and factual information regarding this specific collection.
 
     Archival Guardrails:
@@ -77,7 +40,17 @@ def invokeBaseline(query):
     Output Format:
     Your response must contain only the direct answer to the user's query. If the user asks for "Look Numbers," do not provide "Materials." If the user asks for "Items," do not provide "Reference Codes." Every extra word of metadata is a failure of the archival protocol.
     Never list the exact same item name more than once in a single response. Use a comma-separated list for look numbers to keep the response concise and professional."""
-    
+
+def invokeAgent(query, session_id):
+    full_text = ""
+    try:
+        for chunk in agent.invoke(query, session_id):
+            full_text += chunk
+        return full_text if full_text else "Agent failed to provide a response."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def invokeBaseline(query):
     messages = [
         SystemMessage(content=baseline_system_prompt),
         HumanMessage(content=query)
@@ -105,7 +78,6 @@ agent_answers = []
 baseline_samples = []
 baseline_answers = []
 
-
 for conversation in EVAL_DATA:
     session_id = str(uuid.uuid4())
 
@@ -113,7 +85,7 @@ for conversation in EVAL_DATA:
     reference = conversation["reference"]
     topics = conversation.get("reference_topics", []) 
     
-    agent_answer, traces = invokeAgent(query, session_id)
+    agent_answer = invokeAgent(query, session_id)
     baseline_answer = invokeBaseline(query)
     
     agent_samples.append(SingleTurnSample(
