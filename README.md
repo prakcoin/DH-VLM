@@ -1,4 +1,4 @@
-# DH-VLM
+# DH-Agent: Dior Homme Archive Assistant
 This project implements an AI fashion agent through AWS Bedrock specializing in the Dior Homme archive. Powered by the Nova Pro foundation model, the agent reasons over a multimodal knowledge base of runway look images and structured look breakdown data. For accurate answer synthesis, it uses four toolsets: ItemTools for single item analysis, AggregationTools for collection-wide analysis, ImageTools for visual analysis, and SearchTools for real-time market listings and out-of-scope information.
 
 ## Setup
