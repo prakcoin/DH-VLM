@@ -1,9 +1,6 @@
 import streamlit as st
 import uuid
 from src.agent import DHAgent
-from dotenv import load_dotenv
-
-load_dotenv()
 
 st.set_page_config(page_title="DH-Agent Chat", layout="centered")
 st.title("DH-Agent: Dior Homme Archive Assistant")
