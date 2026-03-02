@@ -1,6 +1,10 @@
 from strands import Agent
 from strands.models import BedrockModel
-from specialized_agents import aggregation_assistant, image_assistant, item_assistant, search_assistant
+from strands.session.file_session_manager import FileSessionManager
+from specialized_agents.aggregation_agent import aggregation_assistant 
+from specialized_agents.image_agent import image_assistant
+from specialized_agents.item_agent import item_assistant
+from specialized_agents.search_agent import search_assistant
 
 ORCHESTRATOR_PROMPT = """
 Role: 
@@ -23,10 +27,13 @@ bedrock_model = BedrockModel(
     model_id="us.amazon.nova-pro-v1:0",
 )
 
+session_manager = FileSessionManager(session_id="multi-agent-session")
+
 orchestrator = Agent(
     model=bedrock_model,
     system_prompt=ORCHESTRATOR_PROMPT,
-    tools=[item_assistant, aggregation_assistant, image_assistant, search_assistant]
+    tools=[item_assistant, aggregation_assistant, image_assistant, search_assistant],
+    session_manager=session_manager
 )
 
 customer_query = "What does look 1 consist of?"
