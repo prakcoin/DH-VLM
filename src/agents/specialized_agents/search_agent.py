@@ -24,6 +24,18 @@ bedrock_model = BedrockModel(
 
 @tool
 def serper_search(query: str) -> str:
+    """
+    Perform a web search for active listings, market data, or reference verification.
+
+    Use this to search for clothing listings, reference codes, or prices on the web.
+
+    Args:
+    query (str): A search query for Serper search.
+
+    Returns:
+    Raw JSON search results from the search API. 
+    Return "Search failed." if the request is unsuccessful.
+    """
     conn = http.client.HTTPSConnection("google.serper.dev")
     payload = json.dumps({"q": query, "num": 5}) 
     headers = {
@@ -42,6 +54,18 @@ def serper_search(query: str) -> str:
 
 @tool
 def tavily_search(query: str) -> str:
+    """
+    Perform a web search for historical, contextual, or analytical information.
+
+    Use this tool when deeper research is required, such as collection history, runway analysis, design inspirations, or editorial commentary.
+
+    Args:
+    query (str): A search query for Tavily search.
+
+    Returns:
+    Raw JSON search results from the search API. 
+    Return "Research failed." if the request is unsuccessful.
+    """
     url = "https://api.tavily.com/search"
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -77,6 +101,17 @@ Include source URLs with every fact.
 
 @tool
 def search_assistant(query: str) -> str:
+    """
+    Handle queries requiring web search.
+
+    Use this as a conversational agent for performing web searches for details unseen in the metadata.
+
+    Args:
+    query (str): A question requiring external web search.
+
+    Returns:
+    Textual response synthesizing information from web sources, including cited URLs where applicable.
+    """
     try:
         search_agent = Agent(
             model=bedrock_model,
