@@ -40,6 +40,18 @@ def load_full_collection():
 
 @tool
 def get_collection_items(search_query: str) -> str: 
+    """
+    Retrieve all items across the collection that match a multi-term search query.
+
+    Use this tool when you need to filter the archive by materials, categories, item types, or descriptive terms and return a list of matching items across multiple looks.
+
+    Args:
+    search_query (str): Keywords describing the items to retrieve (e.g., "leather jacket", "wool coat black").
+
+    Returns:
+    Textual response listing matching items formatted as: Item Name (Look X)
+    If no matches are found, returns a message indicating no results.
+    """
     terms = str(search_query).lower().strip().split() 
 
     if not terms: 
@@ -69,6 +81,17 @@ def get_collection_items(search_query: str) -> str:
 
 @tool
 def get_collection_summary():
+    """
+    Generate a summary of the entire collection for motif or pattern analysis.
+
+    Use this tool when you need a consolidated inventory overview to analyze recurring materials, silhouettes, patterns, or design themes across the archive.
+
+    Args:
+    None
+
+    Returns:
+    A formatted textual inventory summary.
+    """
     items = load_full_collection()
     
     unique_items_map = {}
@@ -103,6 +126,18 @@ def get_collection_summary():
 
 @tool
 def get_item_counts(search_query: str) -> str:
+    """
+    Count how many unique looks contain items matching a given search query.
+
+    Use this tool when the question requires quantitative aggregation, such as determining how frequently a material, garment type, or motif appears across the collection. 
+
+    Args:
+    search_query (str): Keywords describing the attribute or item type to count (e.g., "leather", "striped shirt").
+
+    Returns:
+    A string representing the number of unique looks that contain matching items.
+    Returns "0" if no matches are found.
+    """
     items = load_full_collection()
     terms = str(search_query).lower().strip().split()
     
@@ -131,6 +166,17 @@ Consolidate duplicate entries.
 
 @tool
 def aggregation_assistant(query: str) -> str:
+    """
+    Handle collection-wide queries about multiple items, looks, and their metadata.
+
+    Use this as a conversational agent to answer questions about collection-wide queries involving counts, recurring motifs, and specific information.
+
+    Args:
+    query (str): A question about aggregation.
+
+    Returns: 
+    Textual response with aggregated information.
+    """
     try:
         aggregation_agent = Agent(
             model=bedrock_model,

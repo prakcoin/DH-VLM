@@ -153,7 +153,7 @@ def item_assistant(query: str) -> str:
     query (str): A question about an item.
 
     Returns: 
-    Textual response with item information or guidance.
+    Textual response with item information.
     """
     try:
         item_agent = Agent(
