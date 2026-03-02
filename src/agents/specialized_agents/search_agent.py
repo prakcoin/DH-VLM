@@ -1,0 +1,90 @@
+from strands import Agent, tool
+from strands.models import BedrockModel
+import http.client
+import json
+import logging
+import os
+import urllib.request
+from dotenv import load_dotenv
+
+load_dotenv()
+
+log_level = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
+logging.basicConfig(format="[%(asctime)s] %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+logger.setLevel(log_level)
+
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+SERPER_API_KEY = os.getenv("SERPER_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+bedrock_model = BedrockModel(
+    model_id="us.amazon.nova-lite-v1:0",
+)
+
+@tool
+def serper_search(query: str) -> str:
+    conn = http.client.HTTPSConnection("google.serper.dev")
+    payload = json.dumps({"q": query, "num": 5}) 
+    headers = {
+        "X-API-KEY": SERPER_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        conn.request("POST", "/search", payload, headers)
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        return data
+    except Exception as e:
+        logger.error(f"Serper request failed: {e}")
+        return "Search failed."
+
+@tool
+def tavily_search(query: str) -> str:
+    url = "https://api.tavily.com/search"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "api_key": TAVILY_API_KEY,
+        "query": query,
+        "search_depth": "advanced",
+        "max_results": 3
+    }
+
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            return response.read().decode("utf-8")
+    except Exception as e:
+        logger.error(f"Tavily request failed: {e}")
+        return "Research failed."
+
+SEARCH_PROMPT = """
+Role:
+Provide verified market and historical context via web searches.
+
+Toolset / Actions:
+serper_search: Active or historical item listings, secondary market prices, reference verification.
+tavily_search: Deep-dive research into collection history, inspirations, show details.
+
+Guidelines:
+Limit searches strictly to Dior Homme AW04.
+Always include season and collection identifiers if the user query is vague.
+Discard replicas, inspired items, or unrelated pieces.
+Include source URLs with every fact.
+"""
+
+@tool
+def search_assistant(query: str) -> str:
+    try:
+        search_agent = Agent(
+            model=bedrock_model,
+            system_prompt=SEARCH_PROMPT,
+            tools=[serper_search, tavily_search]
+        )
+
+        response = search_agent(query)
+        return str(response)
+    except Exception as e:
+        return f"Error in search assistant: {str(e)}"
