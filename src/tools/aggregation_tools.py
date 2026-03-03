@@ -1,5 +1,4 @@
-from strands import Agent, tool
-from strands.models import BedrockModel
+from strands import tool
 import boto3
 import os
 import csv
@@ -17,10 +16,6 @@ s3 = boto3.client(
 
 BUCKET_NAME = 'aw04-data'
 FOLDER_PREFIX = 'looks/'
-
-bedrock_model = BedrockModel(
-    model_id="us.amazon.nova-lite-v1:0",
-)
 
 def load_full_collection():
     all_items = []
@@ -154,37 +149,3 @@ def get_item_counts(search_query: str) -> str:
 
     return str(len(unique_looks))
 
-
-AGGREGATION_PROMPT = """
-Role:
-Answer questions that require aggregation or analysis across the entire collection.
-
-Guidelines:
-Exclude generic functional components (buttons, belts, solids) unless explicitly asked.
-Consolidate duplicate entries.
-"""
-
-@tool
-def aggregation_assistant(query: str) -> str:
-    """
-    Handle collection-wide queries about multiple items, looks, and their metadata.
-
-    Use this as a conversational agent to answer questions about collection-wide queries involving counts, recurring motifs, and specific information.
-
-    Args:
-    query (str): A question about aggregation.
-
-    Returns: 
-    Textual response with aggregated information.
-    """
-    try:
-        aggregation_agent = Agent(
-            model=bedrock_model,
-            system_prompt=AGGREGATION_PROMPT,
-            tools=[get_collection_items, get_collection_summary, get_item_counts]
-        )
-
-        response = aggregation_agent(query)
-        return str(response)
-    except Exception as e:
-        return f"Error in aggregation assistant: {str(e)}"

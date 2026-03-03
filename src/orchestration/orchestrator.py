@@ -1,10 +1,11 @@
 from strands import Agent
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
-from specialized_agents.aggregation_agent import aggregation_assistant 
-from specialized_agents.image_agent import image_assistant
-from specialized_agents.item_agent import item_assistant
-from specialized_agents.search_agent import search_assistant
+from strands.agent.conversation_manager import SlidingWindowConversationManager
+from src.agents.aggregation_agent import aggregation_assistant 
+from src.agents.image_agent import image_assistant
+from src.agents.item_agent import item_assistant
+from src.agents.search_agent import search_assistant
 
 ORCHESTRATOR_PROMPT = """
 Role: 
@@ -28,10 +29,12 @@ bedrock_model = BedrockModel(
 )
 
 session_manager = FileSessionManager(session_id="multi-agent-session")
+conversation_manager = SlidingWindowConversationManager(window_size=10)
 
 orchestrator = Agent(
     model=bedrock_model,
     system_prompt=ORCHESTRATOR_PROMPT,
+    conversation_manager=conversation_manager,
     tools=[item_assistant, aggregation_assistant, image_assistant, search_assistant],
     session_manager=session_manager
 )

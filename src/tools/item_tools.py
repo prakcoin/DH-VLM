@@ -1,5 +1,4 @@
-from strands import Agent, tool
-from strands.models import BedrockModel
+from strands import tool
 import boto3
 import csv
 import io
@@ -22,10 +21,6 @@ IMAGE_FOLDER = 'images/'
 BUCKET_NAME = 'aw04-data'
 FOLDER_PREFIX = 'looks/'
 CLOUDFRONT_DOMAIN = "https://d39bzdkvoca64w.cloudfront.net"
-
-bedrock_model = BedrockModel(
-    model_id="us.amazon.nova-lite-v1:0",
-)
 
 @tool
 def get_look_composition(look_number: str):
@@ -132,37 +127,3 @@ def get_item_attribute(item_name: str, look_number: str = None, attribute_type: 
     best_matches = [item['data'] for item in scored_results[:10]]
 
     return f"Archival search results (ranked by relevance): {str(best_matches)}. Extract the {attribute_type} for the {item_name}."
-
-ITEM_PROMPT = """
-Role:
-Handle questions about individual items, looks, and metadata.
-
-Guidelines:
-Never ask the user for look numbers; retrieve directly from the database.
-Pass image filenames to VisualAgent if detailed visual analysis is requested.
-"""
-
-@tool
-def item_assistant(query: str) -> str:
-    """
-    Handle queries about single items, looks, and their metadata.
-
-    Use this as a conversational agent to answer questions about specific items, retrieve look compositions, or provide images.
-
-    Args:
-    query (str): A question about an item.
-
-    Returns: 
-    Textual response with item information.
-    """
-    try:
-        item_agent = Agent(
-            model=bedrock_model,
-            system_prompt=ITEM_PROMPT,
-            tools=[get_look_images, get_look_composition, get_item_attribute]
-        )
-
-        response = item_agent(query)
-        return str(response)
-    except Exception as e:
-        return f"Error in item assistant: {str(e)}"

@@ -1,10 +1,9 @@
-from strands import Agent, tool
-from strands.models import BedrockModel
-import boto3
+from strands import tool
 import json
 import base64
 from urllib.parse import urlparse
 import os
+import boto3
 
 s3 = boto3.client(
     's3',
@@ -14,10 +13,6 @@ s3 = boto3.client(
 )
 bedrock = boto3.client('bedrock-runtime')
 BUCKET_NAME = 'aw04-data'
-
-bedrock_model = BedrockModel(
-    model_id="us.amazon.nova-lite-v1:0",
-)
 
 def parse_filenames_from_string(filenames_str):
     s = filenames_str.strip().lstrip("[").rstrip("]")
@@ -125,38 +120,3 @@ Query: {query}
 
     except Exception as e:
         return f"Error analyzing images {image_filenames}: {str(e)}"
-
-IMAGE_PROMPT = """
-Role:
-Analyze look images for fit, silhouette, texture, and aesthetic details.
-
-Guidelines:
-Always retrieve filenames via ItemAgent.
-Combine visual analysis with metadata for the final answer.
-Report discrepancies between visual and metadata observations.
-"""
-
-@tool
-def image_assistant(query: str) -> str:
-    """
-    Handle queries requiring visual analysis of look images.
-
-    Use this as a conversational agent to answer questions about the visual appearance of garments, including fit, texture, patterns, and specific design details that are better understood visually than through text.
-    
-    Args:
-    query (str): A question requiring visual inspection of a look or garment.
-
-    Returns: 
-    Textual response regarding visual analysis of images.
-    """
-    try:
-        image_agent = Agent(
-            model=bedrock_model,
-            system_prompt=IMAGE_PROMPT,
-            tools=[get_image_details]
-        )
-
-        response = image_agent(query)
-        return str(response)
-    except Exception as e:
-        return f"Error in image assistant: {str(e)}"
