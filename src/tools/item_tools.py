@@ -4,18 +4,10 @@ import csv
 import io
 import os
 import logging
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-s3 = boto3.client(
-    's3',
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name="us-east-1"
-)
+s3 = boto3.client('s3', region_name="us-east-1")
 
 IMAGE_FOLDER = 'images/'
 BUCKET_NAME = 'aw04-data'

@@ -4,9 +4,6 @@ import json
 import logging
 import os
 import urllib.request
-from dotenv import load_dotenv
-
-load_dotenv()
 
 log_level = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
 logging.basicConfig(format="[%(asctime)s] %(levelname)s - %(message)s")

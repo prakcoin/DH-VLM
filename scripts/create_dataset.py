@@ -14,12 +14,9 @@ MODEL_ID = "amazon.nova-pro-v1:0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_DIR = os.path.join(SCRIPT_DIR, "..", "data", "images")
 
-bedrock = boto3.client(service_name="bedrock-runtime", 
-                       region_name="us-east-1",
-                       aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                       aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),)
+bedrock = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
 
-ls = LabelStudio(base_url=f'http://{os.getenv("LABEL_STUDIO_URL")}:{os.getenv("LABEL_STUDIO_PORT")}', api_key=os.getenv("LABEL_STUDIO_API_KEY"))
+ls = LabelStudio(base_url='http://0.0.0.0:8080', api_key=os.getenv("LABEL_STUDIO_API_KEY"))
 
 """
 export LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/home/prak/DH-VLM/

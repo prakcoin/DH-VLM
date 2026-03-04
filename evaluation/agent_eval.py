@@ -15,9 +15,6 @@ from ragas.metrics import (
 )
 from ragas.dataset_schema import SingleTurnSample, EvaluationDataset
 from ragas import evaluate
-from dotenv import load_dotenv
-
-load_dotenv()
 
 agent = DHAgent()
 bedrock_llm = ChatBedrock(model_id="us.amazon.nova-pro-v1:0", region_name="us-east-1")
