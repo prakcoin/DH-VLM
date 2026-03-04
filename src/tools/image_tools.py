@@ -6,7 +6,7 @@ import os
 import boto3
 
 s3 = boto3.client('s3', region_name="us-east-1")
-bedrock = boto3.client('bedrock-runtime')
+bedrock = boto3.client('bedrock-runtime', region_name="us-east-1")
 BUCKET_NAME = 'aw04-data'
 
 def parse_filenames_from_string(filenames_str):
