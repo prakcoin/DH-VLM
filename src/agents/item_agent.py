@@ -12,7 +12,6 @@ Handle questions about individual items, looks, and metadata.
 
 Guidelines:
 Never ask the user for look numbers; retrieve directly from the database.
-Pass image filenames to VisualAgent if detailed visual analysis is requested.
 """
 
 @tool

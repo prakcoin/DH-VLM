@@ -11,7 +11,7 @@ Role:
 Analyze look images for fit, silhouette, texture, and aesthetic details.
 
 Guidelines:
-Always retrieve filenames via ItemAgent.
+Always pass filenames into the query.
 Combine visual analysis with metadata for the final answer.
 Report discrepancies between visual and metadata observations.
 """

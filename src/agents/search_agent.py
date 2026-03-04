@@ -11,10 +11,6 @@ SEARCH_PROMPT = """
 Role:
 Provide verified market and historical context via web searches.
 
-Toolset / Actions:
-serper_search: Active or historical item listings, secondary market prices, reference verification.
-tavily_search: Deep-dive research into collection history, inspirations, show details.
-
 Guidelines:
 Limit searches strictly to Dior Homme AW04.
 Always include season and collection identifiers if the user query is vague.
