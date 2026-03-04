@@ -3,10 +3,10 @@ import boto3
 client = boto3.client('bedrock-agentcore-control')
 
 response = client.create_agent_runtime(
-    agentRuntimeName='strands_agent',
+    agentRuntimeName='aw04_agent_runtime',
     agentRuntimeArtifact={
         'containerConfiguration': {
-            'containerUri': '397172001076.dkr.ecr.us-east-1.amazonaws.com/aw04-strands-agent:latest'
+            'containerUri': '397172001076.dkr.ecr.us-east-1.amazonaws.com/aw04-agent:latest'
         }
     },
     networkConfiguration={"networkMode": "PUBLIC"},

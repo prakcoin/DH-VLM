@@ -6,8 +6,8 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-cache
 
-COPY app.py ./
+COPY . .
 
 EXPOSE 8080
 
-CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "agent:app", "--host", "0.0.0.0", "--port", "8080"]
