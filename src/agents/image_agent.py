@@ -21,8 +21,6 @@ def image_assistant(query: str) -> str:
     """
     Handle queries requiring visual analysis of look images.
 
-    Use this as a conversational agent to answer questions about the visual appearance of garments, including fit, texture, patterns, and specific design details that are better understood visually than through text.
-    
     Args:
     query (str): A question requiring visual inspection of a look or garment.
 

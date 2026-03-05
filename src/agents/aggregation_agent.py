@@ -31,8 +31,6 @@ def aggregation_assistant(query: str) -> str:
     """
     Handle collection-wide queries about multiple items, looks, and their metadata.
 
-    Use this as a conversational agent to answer questions about collection-wide queries involving counts, recurring motifs, and specific information.
-
     Args:
     query (str): A question about aggregation.
 

@@ -19,8 +19,6 @@ def item_assistant(query: str) -> str:
     """
     Handle queries about single items, looks, and their metadata.
 
-    Use this as a conversational agent to answer questions about specific items, retrieve look compositions, or provide images.
-
     Args:
     query (str): A question about an item.
 

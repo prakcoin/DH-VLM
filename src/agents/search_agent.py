@@ -23,8 +23,6 @@ def search_assistant(query: str) -> str:
     """
     Handle queries requiring web search.
 
-    Use this as a conversational agent for performing web searches for details unseen in the metadata.
-
     Args:
     query (str): A question requiring external web search.
 
