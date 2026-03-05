@@ -1,9 +1,7 @@
 import os
 import boto3
 import json
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Dict, Any
+from fastapi import FastAPI, HTTPException, Request
 from datetime import datetime,timezone
 
 def load_secrets():
@@ -24,30 +22,23 @@ from src.orchestration.orchestrator import Orchestrator
 app = FastAPI(title="DH-Agent Server", version="1.0.0")
 agent = Orchestrator()
 
-class InvocationRequest(BaseModel):
-    input: Dict[str, Any]
-
-class InvocationResponse(BaseModel):
-    output: Dict[str, Any]
-
-@app.post("/invocations", response_model=InvocationResponse)
-async def invoke_agent(request: InvocationRequest):
+@app.post("/invocations")
+async def invoke_agent(request: Request):
     try:
-        user_message = request.input.get("prompt", "")
-        if not user_message:
-            raise HTTPException(
-                status_code=400,
-                detail="No prompt found in input. Please provide a 'prompt' key in the input."
-            )
-        
-        result = agent.ask(user_message)
-        response = {
-            "message": result,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "model": "strands-agent",
-        }
+        body = await request.json()
+        user_message = body.get("input", {}).get("prompt")
 
-        return InvocationResponse(output=response)
+        if not user_message:
+            raise HTTPException(status_code=400, detail="No prompt found")
+
+        result = agent.ask(user_message)
+        return {
+            "output": {
+                "message": result,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "model": "strands-agent"
+            }
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent processing failed: {str(e)}")
