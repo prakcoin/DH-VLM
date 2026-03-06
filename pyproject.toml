@@ -7,6 +7,9 @@ requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.135.1",
     "httpx>=0.28.1",
+    "opentelemetry-distro>=0.61b0",
+    "opentelemetry-exporter-otlp>=1.40.0",
+    "opentelemetry-instrumentation-fastapi>=0.61b0",
     "pydantic>=2.12.5",
     "strands-agents>=1.28.0",
     "uvicorn[standard]>=0.41.0",
