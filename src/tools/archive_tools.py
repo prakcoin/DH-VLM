@@ -2,14 +2,76 @@ from strands import tool
 import boto3
 import csv
 import io
+import os
 import logging
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-s3 = boto3.client('s3', region_name="us-east-1")
+s3 = boto3.client('s3', region_name=os.getenv("AWS_REGION"))
 
+IMAGE_FOLDER = 'images/'
 BUCKET_NAME = 'aw04-data'
 FOLDER_PREFIX = 'looks/'
+CLOUDFRONT_DOMAIN = 'https://d39bzdkvoca64w.cloudfront.net'
+
+@tool
+def get_look_composition(look_number: str):
+    """
+    Retrieve archival composition data for a specific look.
+    
+    Use this tool when you want to list every item included in a specific runway look. Only use it when you have a look number.
+    
+    Args:
+    look_number (str): The unique identifier for the look, e.g., "1".
+
+    Returns: 
+    A list of every item in the requested look.
+    """
+    clean_id = str(look_number).strip().lower().replace('look', '').strip()
+    target_file = f"{FOLDER_PREFIX}look_{clean_id}.csv"
+    
+    try:
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=target_file)
+        content = response['Body'].read().decode('utf-8-sig')
+        data = list(csv.DictReader(io.StringIO(content)))
+        return f"Archival data for Look {look_number}: {str(data)}"
+    except s3.exceptions.NoSuchKey:
+        logger.error(f"File not found: {target_file}")
+        return f"I'm sorry, I couldn't find archival data for Look {look_number}."
+    except Exception as e:
+        logger.error(f"Error fetching {target_file}: {str(e)}")
+        return f"I'm sorry, I couldn't find archival data for Look {look_number}."
+
+@tool
+def get_look_images(look_number: str):
+    """
+    Retrieve the runway images for a specific look.
+    
+    Use this tool when a user asks to see a specific runway look. Only use it when you have a look number.
+    
+    Args:
+    look_number (str): The unique identifier for the look, e.g., "1".
+
+    Returns: 
+    A list of image URLs for the look.
+    """
+    prefix = f"{IMAGE_FOLDER}look{look_number}_"
+    
+    image_objects = s3.list_objects_v2(
+        Bucket=BUCKET_NAME, 
+        Prefix=prefix,
+    )
+    
+    image_urls = []
+    
+    if 'Contents' in image_objects:
+        for obj in image_objects['Contents']:
+            key = obj['Key']
+            if key.lower().endswith(('.jpg', '.jpeg', '.png')):
+                full_url = f"{CLOUDFRONT_DOMAIN}/{key}"
+                image_urls.append(full_url)
+    
+    return image_urls
 
 def load_full_collection():
     all_items = []
@@ -28,46 +90,6 @@ def load_full_collection():
     return all_items
 
 FULL_COLLECTION = load_full_collection()
-
-@tool
-def get_collection_items(search_query: str) -> str: 
-    """
-    Retrieve all items across the collection that match a multi-term search query.
-
-    Use this tool when you need to filter the archive by materials, categories, item types, or descriptive terms and return a list of matching items across multiple looks.
-
-    Args:
-    search_query (str): Keywords describing the items to retrieve (e.g., "leather jacket", "wool coat black").
-
-    Returns:
-    Textual response listing matching items formatted as: Item Name (Look X)
-    If no matches are found, returns a message indicating no results.
-    """
-    terms = str(search_query).lower().strip().split() 
-
-    if not terms: 
-        return "Please provide a search query." 
-    
-    matches = [] 
-    
-    for item in FULL_COLLECTION: 
-        name = item.get('Name', '') 
-        notes = item.get('Additional Notes', '') 
-        subcat = item.get('Subcategory', '') 
-        primary_mat = item.get('Primary Outer Material', '') 
-        secondary_mat = item.get('Secondary Outer Material(s)', '') 
-        look_id = item.get('Look Number', '') 
-        
-        row_text = f"Name: {name} Category: {subcat} Primary Outer Material: {primary_mat} Secondary Outer Material(s): {secondary_mat} Notes: {notes}".lower() 
-        
-        if all(t in row_text for t in terms): 
-            row_output = f"{name.capitalize()} (Look {look_id})" 
-            matches.append(row_output) 
-            
-    if not matches: 
-        return f"I couldn't find any items matching '{search_query}' in the collection." 
-    
-    return f"Archival inventory for '{search_query}': {', '.join(matches)}"
 
 @tool
 def get_collection_summary():
@@ -98,7 +120,7 @@ def get_collection_summary():
             unique_items_map[signature] = item
 
     unique_list = []
-    for sig, data in unique_items_map.items():
+    for _, data in unique_items_map.items():
         desc = (
             f"- {data.get('Name')}: {data.get('Subcategory')} in {data.get('Primary Outer Material')} and {data.get('Secondary Outer Material(s)')}. "
             f"Pattern: {data.get('Pattern')}. Notes: {data.get('Additional Notes')}"
@@ -140,4 +162,3 @@ def get_item_counts(search_query: str) -> str:
             unique_looks.add(item.get('Look Number'))
 
     return str(len(unique_looks))
-

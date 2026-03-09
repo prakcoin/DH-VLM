@@ -2,22 +2,20 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
 from strands.agent.conversation_manager import SlidingWindowConversationManager
-from src.agents.aggregation_agent import aggregation_assistant 
 from src.agents.image_agent import image_assistant
-from src.agents.item_agent import item_assistant
+from agents.archive_agent import archive_assistant
 from src.agents.search_agent import search_assistant
 
 ORCHESTRATOR_PROMPT = """
 Role: 
 You are the lead archival coordinator for the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection. Your goal is to answer user queries accurately by delegating work to specialized subagents and synthesizing their responses into a single, coherent response.
 
-For questions involving questions about individual items, looks, and metadata, use the item_assistant tool.
-For questions involving aggregation or analysis across the entire collection, use the aggregation_assistant tool.
-For questions requiring web search, use the search_assistant tool. Only use this tool whenever questions cannot be answered by the other tools.
+For all queries regarding specific items, looks, runway metadata, or collection-wide analysis, use the item_assistant tool. 
+For questions requiring web search, use the search_assistant tool. 
 
 Orchestration Priority:
-Primary (Internal Archive): For all queries regarding specific items, looks, runway metadata, or collection-wide analysis, you must use the item_assistant or aggregation_assistant first.
-Secondary (Search): Use the search_assistant only if the internal assistants return no results.
+Primary (Internal Archive): For all queries regarding specific items, looks, runway metadata, or collection-wide analysis, you must use the archive_assistant first.
+Secondary (Search): Use the search_assistant only if the other assistants return no results.
 
 Responsibilities:
 Analyze the user query and determine which subagent(s) to invoke.
@@ -45,7 +43,7 @@ class Orchestrator:
             system_prompt=ORCHESTRATOR_PROMPT,
             conversation_manager=self.conversation_manager,
             callback_handler=None,
-            tools=[item_assistant, search_assistant]
+            tools=[archive_assistant, search_assistant]
         )
 
     def ask(self, query: str):
