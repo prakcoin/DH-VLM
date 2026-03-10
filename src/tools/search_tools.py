@@ -28,8 +28,9 @@ def serper_search(query: str) -> str:
     Raw JSON search results from the search API. 
     Return "Search failed." if the request is unsuccessful.
     """
+    search_query = f"Dior Homme AW04 {query}"
     conn = http.client.HTTPSConnection("google.serper.dev")
-    payload = json.dumps({"q": query, "num": 5}) 
+    payload = json.dumps({"q": search_query, "num": 5}) 
     headers = {
         "X-API-KEY": SERPER_API_KEY,
         "Content-Type": "application/json"
