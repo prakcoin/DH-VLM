@@ -12,7 +12,7 @@ logging.basicConfig(format="[%(asctime)s] %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(log_level)
 
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
@@ -35,7 +35,7 @@ Role:
 Find current and past listings for items using web search.
 
 Guidelines:
-Limit searches strictly to Dior Homme AW04.
+Limit searches strictly to Dior Homme Autumn/Winter 2004, by Hedi Slimane. Avoid Dior by John Galliano, Christian Dior, Christian Dior Monsieur, or other seasons/era collections.
 Always include season and collection identifiers if the user query is vague.
 Discard replicas, inspired items, or unrelated pieces.
 Include source URLs with every fact. Do not hallucinate invalid URLs.
