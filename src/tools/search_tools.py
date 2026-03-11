@@ -27,7 +27,7 @@ Retrieve proper information to be used in search, and for final verification.
 Guidelines:
 Once the relevant information is obtained, add it to the rest of the query. 
 The only required information to add is the item name.
-If some information is classified as not available or to be updated.
+If some information is classified as not available or to be updated, do not include it.
 """
 
 SEARCH_PROMPT = """
