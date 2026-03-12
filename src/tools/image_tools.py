@@ -159,7 +159,7 @@ Query: {query}
     
 KB_PROMPT = """
 Role:
-Retrieve the look number from the knowledge base based on the query.
+Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query.
 
 Guidelines: 
 If the look number is already included in the query, there is no need to retrieve it from the knowledge base.

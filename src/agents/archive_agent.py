@@ -16,7 +16,6 @@ Use the retrieve tool for both individual item details (reference codes, materia
 To get the full clothing item composition of a look, use the get_look_composition tool. Only use it when you have a look number, and when asked what a look consists of. 
 To retrieve the runway images of a certain look, use the get_look_images tool. Only use it when you have a look number, and when asked to retrieve runway look images.
 To get a full collection summary, use the get_collection_summary tool. Do not pass any parameters.
-To get specific counts, use the get_item_counts tool. Pass the relevant terms (item name, metadata), not the full query.
 To answer queries involving visual analysis or identifying visual characteristics (e.g. a query stating "based on the images"), use the image_workflow tool. Pass the relevant aspects of the query that need to be analyzed (e.g. an item, look, or feature) to the tool, rather than the full query.
 
 Guidelines:
@@ -45,7 +44,7 @@ def archive_assistant(query: str) -> str:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
-            tools=[get_look_composition, get_collection_summary, get_item_counts, image_workflow, retrieve]
+            tools=[get_look_composition, get_look_images, get_collection_summary, image_workflow, retrieve]
         )
 
         response = archive_agent(query)

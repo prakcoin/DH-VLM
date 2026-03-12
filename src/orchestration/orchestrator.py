@@ -2,7 +2,6 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
 from strands.agent.conversation_manager import SlidingWindowConversationManager
-from src.agents.image_agent import image_assistant
 from agents.archive_agent import archive_assistant
 from src.agents.search_agent import search_assistant
 
@@ -18,7 +17,9 @@ Responsibilities:
 Analyze the user query and determine which subagent(s) to invoke.
 Collect and integrate responses from subagents into a professional, precise answer.
 Ensure all output follows the archival guardrails: neutral tone, standard sentence case, no marketing language, and metadata consolidation.
+Never ask the user for a look number first. If it isn't provided by the user, assume they do not know it.
 Do not hallucinate item information (e.g. reference codes). All information must be derived from the archive or a web search.
+Do not tell the user to check the official Dior archives or contact Dior directly. You are considered the lead archival source, and Dior currently doesn't specialize in the information that you have.
 Never perform searches or tool actions yourself; only orchestrate subagent calls.
 When declining out-of-scope questions, you must state clearly that your expertise is strictly limited to this collection and offer to assist with any relevant inquiries instead.
 The collection consists of exactly 45 looks (1–45). If a requested look number falls outside this range, inform the user that the look does not exist in the collection.
@@ -36,12 +37,13 @@ class Orchestrator:
 
     def __init__(self):
         self.model = BedrockModel(model_id="us.amazon.nova-pro-v1:0")
-
+        #self.session_manager = FileSessionManager(session_id='new-session')
         self.conversation_manager = SlidingWindowConversationManager(window_size=10)
 
         self.agent = Agent(
             model=self.model,
             system_prompt=ORCHESTRATOR_PROMPT,
+            #session_manager=self.session_manager,
             conversation_manager=self.conversation_manager,
             callback_handler=None,
             tools=[archive_assistant, search_assistant]
