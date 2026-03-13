@@ -1,7 +1,7 @@
 from strands import Agent, tool
 from strands.models import BedrockModel
 from tools.archive_tools import get_look_composition, get_collection_summary, get_item_counts
-from tools.image_tools import get_look_images, get_image_details, image_workflow
+from tools.image_tools import get_look_images, get_kb_visual_analysis, get_image_input
 from strands_tools import retrieve
 
 bedrock_model = BedrockModel(
@@ -13,16 +13,19 @@ Role:
 Your role is to provide precise data on individual items, specific looks, and collection-wide analysis by utilizing the archival toolset.
 
 Use the retrieve tool for both individual item details (reference codes, materials, design features) and broader multi-item searches. When using this, pass only the relevant terms (item name or metadata) rather than the full user query. Never pass look numbers.
+When provided an image with the query, use the get_image_input tool to analyze the image and address the user's query; if no text is provided, analyze the image to determine if it is relevant to Dior Homme AW04 and provide a detailed description. Only use this tool if the user provides an external image file.
 To get the full clothing item composition of a look, use the get_look_composition tool. Only use it when you have a look number, and when asked what a look consists of. 
 To retrieve the runway images of a certain look, use the get_look_images tool. Only use it when you have a look number, and when asked to retrieve runway look images.
 To get a full collection summary, use the get_collection_summary tool. Do not pass any parameters.
-To answer queries involving visual analysis or identifying visual characteristics (e.g. a query stating "based on the images"), use the image_workflow tool. Pass the relevant aspects of the query that need to be analyzed (e.g. an item, look, or feature) to the tool, rather than the full query.
+To answer queries involving knowledge base driven visual analysis or identifying visual characteristics, use the get_kb_visual_analysis tool. Pass the relevant aspects of the query that need to be analyzed (e.g. an item, look, or feature) to the tool, rather than the full query.
 
 Guidelines:
 Exclude generic functional components (buttons, belts, solids) unless explicitly asked.
 Consolidate duplicate entries.
 Never ask the user for look numbers.
 When tools require look numbers, do not use them when you don't have one.
+If the get_image_input tool cannot find an image, stop all processing immediately.
+Make sure to pass the full query to the get_image_input tool.
 If retrieved results yield a low score, retry with a lower threshold. If results remain below the threshold, return them anyway but state that they are provided with lower confidence.
 All data within the archival toolset is exclusively from the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection. There is no data from any other collection.
 When performing visual analysis, report discrepancies between visual and metadata observations.
@@ -44,7 +47,7 @@ def archive_assistant(query: str) -> str:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
-            tools=[get_look_composition, get_look_images, get_collection_summary, image_workflow, retrieve]
+            tools=[get_look_composition, get_look_images, get_collection_summary, get_kb_visual_analysis, get_image_input, retrieve]
         )
 
         response = archive_agent(query)

@@ -4,9 +4,11 @@ import base64
 from urllib.parse import urlparse
 import os
 import boto3
+from typing import Any
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_tools import retrieve
+from strands_tools import retrieve, image_reader
+from strands.types.tools import ToolResult, ToolUse
 
 s3 = boto3.client('s3', region_name=os.getenv("AWS_REGION"))
 bedrock = boto3.client('bedrock-runtime', region_name=os.getenv("AWS_REGION"))
@@ -184,7 +186,7 @@ Report discrepancies between visual and metadata observations.
 """
 
 @tool 
-def image_workflow(query: str) -> str:
+def get_kb_visual_analysis(query: str) -> str:
     kb_agent = Agent(model=bedrock_model,
         system_prompt=KB_PROMPT, tools=[retrieve])
     visual_agent = Agent(model=bedrock_model,
@@ -195,4 +197,50 @@ def image_workflow(query: str) -> str:
     kb_results = kb_agent(f"Retrieve the look number based on this query: {query}")
     visual_results = visual_agent(f"Based on the look number retrieved, answer the query. Retrived results: {kb_results}. Query: {query}.")
     response = synthesis_agent(f"Synthesize a final result for this query: {query}. Visual results: {visual_results}. Knowledge base results: {kb_results}.")
+    return response
+
+READER_PROMPT = """
+Role:
+Use the image_reader tool to format the image path from the query to be used in later steps.
+Pass the image path from thr query into the image_path parameter.
+
+Guidelines:
+Only format the image path and combine it with the query. 
+Do not pass the entire query into image_reader, only the path.
+If there is no image, indicate this and decline to answer. 
+"""
+
+IMAGE_KB_PROMPT = """
+Retrieve any relevant images related to the image and query.
+
+Guidelines:
+If the image is irrelevant, indicate this and decline to answer.
+If no results are able to be retrieved, state this.
+"""
+
+SUMMARIZER_PROMPT = """
+Role:
+Synthesize a final answer based on visual and knowledge base information.
+
+Guidelines:
+If the image is irrelevant, indicate this and decline to answer.
+Combine visual analysis with metadata for the final answer.
+"""
+
+@tool 
+def get_image_input(query: str) -> str:
+    
+    reader_agent = Agent(model=bedrock_model,
+        system_prompt=KB_PROMPT, tools=[image_reader])
+    visual_agent = Agent(model=bedrock_model,
+        system_prompt=VISUAL_PROMPT, tools=[retrieve])
+    synthesis_agent = Agent(model=bedrock_model,
+        system_prompt=SYNTHESIS_PROMPT)
+
+    reader_results = reader_agent(f"Format the image and query: {query}")
+    
+    kb_results = visual_agent.tool.retrieve(text=reader_results, knowledgeBaseId=os.getenv('IMAGE_KNOWLEDGE_BASE_ID'))
+    
+    # kb_results = visual_agent(f"Based on the formatted image and query, retrieve relevant results. Query: {reader_results}")
+    response = synthesis_agent(f"Synthesize a final result for this query: {reader_results}. Knowledge base results: {kb_results}.")
     return response
