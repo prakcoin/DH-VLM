@@ -1,7 +1,7 @@
 from strands import Agent, tool, AgentSkills
 from strands.models import BedrockModel
-from tools.archive_tools import get_look_composition, get_collection_summary, get_item_counts
-from tools.image_tools import get_look_images, get_kb_visual_analysis, get_image_input
+from tools.archive_tools import get_collection_summary
+from tools.image_tools import get_kb_visual_analysis, get_image_input
 from strands_tools import retrieve
 
 bedrock_model = BedrockModel(
@@ -15,6 +15,7 @@ Role:
 Your role is to provide precise data on individual items, specific looks, and collection-wide analysis by utilizing the archival toolset.
 
 Guidelines:
+When providing an answer, always prioritize the knowledge base metadata; if specific details cannot be retrieved, use visual analysis through to confirm information.
 Consolidate duplicate entries.
 Do not hallucinate item information. All information must be derived from the archive.
 Do not include any sources in your response.
@@ -37,7 +38,7 @@ def archive_assistant(query: str) -> str:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
-            tools=[get_look_composition, get_look_images, get_collection_summary, get_kb_visual_analysis, get_image_input, retrieve],
+            tools=[get_collection_summary, get_kb_visual_analysis, get_image_input, retrieve],
             plugins=[plugin]
         )
 
