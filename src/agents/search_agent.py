@@ -1,24 +1,24 @@
-from strands import Agent, tool
+from strands import Agent, tool, AgentSkills
 from strands.models import BedrockModel
 from src.tools.search_tools import listing_search, tavily_search
-import logging
 
 bedrock_model = BedrockModel(
     model_id="us.amazon.nova-lite-v1:0",
 )
 
+plugin = AgentSkills(skills="src/agents/skills/search_skills")
+
 SEARCH_PROMPT = """
 Role:
 Provide verified market and historical context via web searches.
 
-To search for clothing listings, reference codes, or prices on the web, use the serper_search tool.
-When deeper research is required, for topics such as collection history, runway analysis, design inspirations, or editorial commentary, use the tavily_search tool.
-
 Guidelines:
 Limit searches strictly to Dior Homme AW04.
+When declining out-of-scope questions, you must state clearly that your expertise is strictly limited to this collection and offer to assist with any relevant inquiries instead.
 Always include season and collection identifiers if the user query is vague.
-Discard replicas, inspired items, or unrelated pieces.
 Include source URLs with every fact.
+Avoid mentioning subagents or tools; the user sees only the final archival output.
+Address the query directly and exclusively. Do not provide tangential context, historical background, or related media unless specifically requested.
 """
 
 @tool
@@ -36,7 +36,8 @@ def search_assistant(query: str) -> str:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=SEARCH_PROMPT,
-            tools=[listing_search, tavily_search]
+            tools=[listing_search, tavily_search],
+            plugins=[plugin]
         )
 
         response = archive_agent(query)

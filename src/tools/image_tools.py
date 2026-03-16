@@ -202,7 +202,7 @@ def get_kb_visual_analysis(query: str) -> str:
 READER_PROMPT = """
 Role:
 Use the image_reader tool to format the image path from the query to be used in later steps.
-Pass the image path from thr query into the image_path parameter.
+Pass the image path from the query into the image_path parameter.
 
 Guidelines:
 Only format the image path and combine it with the query. 
