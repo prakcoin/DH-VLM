@@ -1,6 +1,6 @@
 ---
 name: knowledge-base-retrieval
-description: Use the retrieve tool for both individual item details (reference codes, materials, design features) and broader multi-item searches. 
+description: Use for both individual item details (reference codes, materials, design features) and broader multi-item searches. Do not use for item count queries.
 allowed-tools: retrieve
 ---
 # Knowledge Base Retrieval
