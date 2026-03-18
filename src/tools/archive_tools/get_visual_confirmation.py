@@ -5,6 +5,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 from strands_tools import retrieve
 from src.agents.hooks import LimitToolCounts
+from src.tools.archive_tools import get_look_images, get_image_details 
 
 s3 = boto3.client('s3', region_name=os.getenv("AWS_REGION"))
 bedrock = boto3.client('bedrock-runtime', region_name=os.getenv("AWS_REGION"))
