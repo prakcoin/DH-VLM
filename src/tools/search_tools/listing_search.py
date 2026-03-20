@@ -26,16 +26,19 @@ Role:
 Retrieve the items reference code, primary color, secondary color(s), primary outer material, and secondary outer material(s) to be used in search, and for final verification.
 
 Guidelines:
-Once the relevant information is obtained, return it.
+Do not retrieve using the full query, instead extract the core subject (e.g., "fur hooded jacket") and search with this instead.
+Use the retrieve tool to get the relevant information, then return it.
 If some information is classified as not available or to be updated, do not include it.
 """
 
 SEARCH_PROMPT = """
 Role:
-Find current and past listings for items using web search.
-Search using the query and the reference code and color retrieved from the knowledge base, combine them as one query.
+Find current and past listings for items using the tavily_search tool.
 
 Guidelines:
+Search using the query and the reference code and color retrieved from the knowledge base, combine them as one query.
+Do not search using the raw user query. Extract the core subject (e.g., "fur hooded jacket") and merge it with the retrieved knowledge base metadata. Example: input = "Can you find listings of the fur hooded jacket" + knowledge base "black, 4HH5043801" = black fur hooded leather jacket 4HH5043801.
+Do not include the brand name or season in your input to avoid redundancy, as the tavily_search tool automatically applies hardcoded prefixes to search queries.
 Limit searches strictly to Dior Homme Autumn/Winter 2004, by Hedi Slimane. Avoid Dior by John Galliano, Christian Dior, Christian Dior Monsieur, or other seasons/era collections.
 Always include season and collection identifiers if the user query is vague.
 Discard replicas, inspired items, or unrelated pieces.
@@ -107,24 +110,51 @@ def tavily_search(query: str) -> str:
     Raw JSON search results from the search API. 
     Return "Search failed." if the request is unsuccessful.
     """
-    search_query = f"Dior Homme AW04 {query}"
-    url = "https://api.tavily.com/search"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "api_key": TAVILY_API_KEY,
-        "query": search_query,
-        "search_depth": "advanced",
-        "max_results": 3
-    }
+    usa_queries = [f"Dior {query}", f"Dior AW04 {query}", f"Dior Homme {query}", f"Dior Homme AW04 {query}"]
+    jp_queries = [f"ディオール {query}", f"ディオール 04AW {query}", f"ディオールオム {query}", f"ディオールオム 04AW {query}"]
 
-    try:
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req) as response:
-            return response.read().decode("utf-8")
-    except Exception as e:
-        logger.error(f"Tavily request failed: {e}")
-        return "Research failed."
+    api_key = TAVILY_API_KEY
+    url = "https://api.tavily.com/search"
+    
+    regions = [
+        {
+            "query": f"Dior Homme AW04 {query}",
+            "country": "united states",
+            "domains": ["grailed.com", "ebay.com", "vestiairecollective.com", "therealreal.com"]
+        },
+        {
+            "query": f"ディオールオム 04AW {query}",
+            "country": "japan",
+            "domains": ["auctions.yahoo.co.jp", "jp.mercari.com", "fril.jp", "trefac.jp"]
+        }
+    ]
+
+    combined_results = []
+
+    for region in regions:
+        payload = {
+            "api_key": api_key,
+            "query": region["query"],
+            "include_images": True,
+            "country": region["country"],
+            "include_domains": region["domains"],
+            "search_depth": "advanced",
+            "max_results": 5
+        }
+
+        try:
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                combined_results.extend(res_data.get("results", []))
+        except Exception as e:
+            logger.error(f"Search failed for {region['country']}: {e}")
+
+    if not combined_results:
+        return "No results found."
+
+    return json.dumps(combined_results, ensure_ascii=False)
 
 @tool 
 def listing_search(query: str) -> str:
