@@ -2,7 +2,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 from strands_tools import retrieve
 from tavily import TavilyClient
-import http.client
+import urllib.request
 import re
 import json
 import logging
@@ -94,7 +94,7 @@ def validate_urls(urls: list[str]) -> dict:
     return results
 
 @tool
-def serper_search(query: str) -> str:
+def tavily_search(query: str) -> str:
     """
     Perform a web search for active listings, market data, or reference verification.
 
@@ -108,21 +108,23 @@ def serper_search(query: str) -> str:
     Return "Search failed." if the request is unsuccessful.
     """
     search_query = f"Dior Homme AW04 {query}"
-    conn = http.client.HTTPSConnection("google.serper.dev")
-    payload = json.dumps({"q": search_query, "num": 5}) 
-    headers = {
-        "X-API-KEY": SERPER_API_KEY,
-        "Content-Type": "application/json"
+    url = "https://api.tavily.com/search"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "api_key": TAVILY_API_KEY,
+        "query": search_query,
+        "search_depth": "advanced",
+        "max_results": 3
     }
-    
+
     try:
-        conn.request("POST", "/search", payload, headers)
-        res = conn.getresponse()
-        data = res.read().decode("utf-8")
-        return data
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            return response.read().decode("utf-8")
     except Exception as e:
-        logger.error(f"Serper request failed: {e}")
-        return "Search failed."
+        logger.error(f"Tavily request failed: {e}")
+        return "Research failed."
 
 @tool 
 def listing_search(query: str) -> str:
@@ -140,7 +142,7 @@ def listing_search(query: str) -> str:
     kb_agent = Agent(model=bedrock_model,
         system_prompt=KB_PROMPT, tools=[retrieve])
     google_agent = Agent(model=bedrock_model,
-        system_prompt=SEARCH_PROMPT, tools=[serper_search])
+        system_prompt=SEARCH_PROMPT, tools=[tavily_search])
     aggregator_agent = Agent(model=bedrock_model,
         system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls])
 

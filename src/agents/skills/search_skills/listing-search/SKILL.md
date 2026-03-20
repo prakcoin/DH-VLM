@@ -1,6 +1,6 @@
 ---
 name: listing-search
-description: Performs Serper search for listings based on the query, and compares the results to existing knowledge base information. Use this to search for clothing listings, reference codes, or prices on the web.
+description: Performs web search for listings based on the query, and compares the results to existing knowledge base information. Use this to search for clothing listings, reference codes, or prices on the web.
 allowed-tools: listing_search
 ---
 # Listing Search
