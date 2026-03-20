@@ -4,7 +4,6 @@ from strands_tools import retrieve
 from tavily import TavilyClient
 from src.agents.hooks import LimitToolCounts
 import urllib.request
-import re
 import json
 import logging
 import os
@@ -24,10 +23,10 @@ bedrock_model = BedrockModel(
 
 KB_PROMPT = """
 Role:
-Retrieve the items reference code, primary color, secondary color(s), primary outer material, and secondary outer material(s) to be used in search, and for final verification.
+Retrieve the items reference code, primary color, secondary color(s), primary outer material, secondary outer material(s), and additional notes to be used in search, and for final verification.
 
 Guidelines:
-Do not retrieve using the full query, instead extract the core subject (e.g., "fur hooded jacket") and search with this instead.
+Do not retrieve using the full query, instead extract the core subject (e.g., "leather jacket") and search with this instead.
 Use the retrieve tool to get the relevant information, then return it.
 If some information is classified as not available or to be updated, do not include it.
 """
@@ -52,17 +51,19 @@ Aggregate all web search results and filter out irrelevant or redundant results.
 
 Guidelines:
 You must pass all URLs from the search results into the validate_urls tool to help filter out any non-functional URLs.
+If no URLs are found, skip validation and state that no results were found.
 Filter based on all of the ground truth provided by the knowledge base EXCEPT for the reference code. If a search result doesn't match the item based in the knowledge base, filter it out.
 If a result is simply missing information that the knowledge base contains, DO NOT filter it out immediately. Treat "missing info" as a potential match unless it is proven wrong by other details.
-Make sure retrieved results are from Dior Homme AW04.
+Make sure retrieved results are from Dior Homme Autumn/Winter 2004.
 Discard replicas, inspired items, or unrelated pieces.
 Provide listing URLs. Never guess a URL.
+If there are no relevant results, and no results match what is being asked, then state this and return no results.
 """
 
 @tool
 def validate_urls(urls: list[str]) -> dict:
     """
-    Validate and extract full content from a list of web URLs.
+    Validate a list of web URLs.
 
     Use this to verify if clothing listings are still active, and filter out dead links or error pages.
 
@@ -72,28 +73,30 @@ def validate_urls(urls: list[str]) -> dict:
     Returns:
     A dictionary containing 'valid_listings' with extracted content and 'invalid' listings with failure reasons. Returns an error message if the extraction fails.
     """
+    if not urls:
+        return {"valid_listings": [], "invalid": [], "message": "No URLs provided to validate"}
+
     tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     results = {"valid_listings": [], "invalid": []}
     
-    pattern = re.compile(r".*listings.*|.*products.*|.*item.*", re.IGNORECASE)
-    potential_urls = [u for u in urls if re.search(pattern, u)]
-
     try:
-        extraction = tavily_client.extract(urls=potential_urls)
+        extraction = tavily_client.extract(urls=urls)
+        
+        for failed in extraction.get("failed_results", []):
+            u = failed.get("url")
+            results["invalid"].append({"url": u, "reason": "Hard 404"})
+
         for item in extraction.get("results", []):
-            content = item.get("raw_content", "").lower()
-            
-            if "page not found" in content or "available" in content[:500]:
-                results["invalid"].append({"url": item['url'], "reason": "Soft 404"})
-                continue
-            
+            content = item.get("raw_content", "")
+        
             results["valid_listings"].append({
                 "url": item['url'],
-                "content": item['raw_content'][:3000],
+                "content": content[:3500],
                 "title": item.get("title")
             })
+            
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"Extraction failed: {str(e)}"}
 
     return results
 
@@ -198,6 +201,8 @@ def listing_search(query: str) -> str:
         system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls])
 
     kb_results = kb_agent(f"Retrieve relevant information based on this query: {query}")
-    search_results = google_agent(f"Perform a web search based on the query and relevant knowledge base information. Query: {query}. Knowledge base results: {kb_results}.")
-    response = aggregator_agent(f"Filter out any redundant or irrelevant results from these search results: {search_results}. Base the relevancy on these ground truths: {kb_results}.")
+    search_results = google_agent(f"Perform a web search based on the query and relevant knowledge base information. Query: {query}. Knowledge base results: {str(kb_results)}.")
+    if "No results found" in str(search_results):
+        return "No Dior Homme AW04 listings were found matching your criteria."
+    response = aggregator_agent(f"Filter out any irrelevant results from these search results: {str(search_results)}. Base the relevancy on these ground truths: {str(kb_results)}.")
     return response
