@@ -2,6 +2,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 from strands_tools import retrieve
 from tavily import TavilyClient
+from src.agents.hooks import LimitToolCounts
 import urllib.request
 import re
 import json
@@ -38,7 +39,7 @@ Find current and past listings for items using the tavily_search tool.
 Guidelines:
 Search using the query and the reference code and color retrieved from the knowledge base, combine them as one query.
 Do not search using the raw user query. Extract the core subject (e.g., "fur hooded jacket") and merge it with the retrieved knowledge base metadata. Example: input = "Can you find listings of the fur hooded jacket" + knowledge base "black, 4HH5043801" = black fur hooded leather jacket 4HH5043801.
-Do not include the brand name or season in your input to avoid redundancy, as the tavily_search tool automatically applies hardcoded prefixes to search queries.
+Do not include the brand name or season in your input to avoid redundancy, as the tavily_search tool automatically applies hardcoded prefixes to search queries. Do not include "Dior", "AW04", "Autumn/Winter 2004", or similar keywords.
 Limit searches strictly to Dior Homme Autumn/Winter 2004, by Hedi Slimane. Avoid Dior by John Galliano, Christian Dior, Christian Dior Monsieur, or other seasons/era collections.
 Always include season and collection identifiers if the user query is vague.
 Discard replicas, inspired items, or unrelated pieces.
@@ -54,7 +55,7 @@ You must pass all URLs from the search results into the validate_urls tool to he
 Filter based on all of the ground truth provided by the knowledge base EXCEPT for the reference code. If a search result doesn't match the item based in the knowledge base, filter it out.
 If a result is simply missing information that the knowledge base contains, DO NOT filter it out immediately. Treat "missing info" as a potential match unless it is proven wrong by other details.
 Make sure retrieved results are from Dior Homme AW04.
-Discard duplicate listings, replicas, inspired items, or unrelated pieces.
+Discard replicas, inspired items, or unrelated pieces.
 Provide listing URLs. Never guess a URL.
 """
 
@@ -162,7 +163,16 @@ def tavily_search(query: str) -> str:
     if not results:
         return "No results found."
 
-    return json.dumps(results, ensure_ascii=False)
+    unique_results = []
+    seen_urls = set()
+
+    for result in results:
+        url_link = result.get("url")
+        if url_link not in seen_urls:
+            unique_results.append(result)
+            seen_urls.add(url_link)
+
+    return json.dumps(unique_results, ensure_ascii=False)
 
 @tool 
 def listing_search(query: str) -> str:
@@ -177,10 +187,13 @@ def listing_search(query: str) -> str:
     Returns:
     Filtered search results.
     """
+    limit_retrieve_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
+    limit_search_hook = LimitToolCounts(max_tool_counts={"tavily_search": 3})
+
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve])
+        system_prompt=KB_PROMPT, tools=[retrieve], hooks=[limit_retrieve_hook])
     google_agent = Agent(model=bedrock_model,
-        system_prompt=SEARCH_PROMPT, tools=[tavily_search])
+        system_prompt=SEARCH_PROMPT, tools=[tavily_search], hooks=[limit_search_hook])
     aggregator_agent = Agent(model=bedrock_model,
         system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls])
 
