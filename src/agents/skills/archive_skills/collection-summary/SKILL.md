@@ -1,11 +1,14 @@
 ---
 name: collection-summary
-description: Retrieves the exhaustive collection inventory with subcategory and item frequency counts. Use for motif analysis, item counts, or confirming the presence/absence of traits across the entire archive.
+description: Performs deterministic aggregation and searches across the archive. Use this for counting items, identifying recurring themes (motifs, colors, silhouettes), or verifying item presence across looks.
 allowed-tools: get_collection_summary
 ---
-# Collection Summary
+# Collection Analysis
 
-This skill is for obtaining a full collection inventory to be summarized. Use the get_collection_summary tool, and do not pass any parameters.
+Use this skill to query the archive for specific subsets or a general overview. 
 
-## Guidelines
-Exclude generic functional components (buttons, belts, solids) from the summary.
+## Guidelines 
+You must pass parameters if the user specifies an item type or color.
+If the user asks for a collection summary or something similar, call get_collection_inventory with no parameters.
+If the tool returns no results for specific parameters, retry using synonyms. If results are still empty, call the tool with no parameters to retrieve a full collection summary.
+If the tool returns a 'Qty(UniqueLooks)' like '12(10L)', report it as '12 items across 10 distinct looks.'

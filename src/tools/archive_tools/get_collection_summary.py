@@ -4,7 +4,8 @@ import csv
 import io
 import os
 import logging
-from collections import Counter
+import pandas as pd
+from typing import Optional
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -30,59 +31,58 @@ def load_full_collection():
     return all_items
 
 FULL_COLLECTION = load_full_collection()
+df_archive = pd.DataFrame(FULL_COLLECTION)
 
 @tool
-def get_collection_summary():
+def get_collection_inventory(subcategory: Optional[str] = None, color: Optional[str] = None):
     """
-    Generate a statistical and descriptive summary of the entire collection,
-    including item frequency and subcategory distribution.
+    Perform a statistical and descriptive analysis of the archive.
+    Provides total item counts, unique look distribution, and filtered inventory lists.
 
-    Use this tool when you need a consolidated inventory overview to analyze recurring materials, silhouettes, patterns, or design themes across the archive.
+    Use this when you need to analyze recurring materials, patterns, or themes, 
+    either for the whole collection or filtered by category or color.
 
     Args:
-    None
+    subcategory (str, optional): Filter by subcategory (e.g., 'Knitwear'). 
+    color (str, optional): Filter by primary color (e.g., 'Red').
 
     Returns:
-    A report containing subcategory counts and a frequency-weighted inventory.
+    A dictionary containing subcategory distributions and a pipe-delimited inventory list formatted as Qty(UniqueLooks)|Name|Subcategory|Color|LookNumbers.
     """
-    unique_items_map = {}
-    item_frequency = Counter()
-    subcategory_counts = Counter()
-    
-    for item in FULL_COLLECTION:
-        signature = (
-            item.get('Name', ''),
-            item.get('Look Number', ''),
-            item.get('Primary Color', ''),
-        )
+    df = df_archive.copy()
+
+    if subcategory and subcategory.strip():
+        df = df[df['Subcategory'].str.lower() == subcategory.lower()]
         
-        item_frequency[signature] += 1
-        subcat = item.get('Subcategory', 'Uncategorized')
-        subcategory_counts[subcat] += 1
-        
-        if signature not in unique_items_map:
-            unique_items_map[signature] = item
+    if color and color.strip():
+        df = df[df['Primary Color'].str.lower() == color.lower()]
 
-    stats_header = "Inventory Statistics\n"
-    stats_header += f"Total Unique Items: {len(unique_items_map)}\n"
-    stats_header += "Subcategory Distribution:\n"
-    for subcat, count in subcategory_counts.most_common():
-        stats_header += f"- {subcat}: {count}\n"
+    if df.empty:
+        return "No items match your query parameters."
 
-    unique_list = []
-    sorted_signatures = item_frequency.most_common()
+    all_look_ids = set()
+    for val in df['Look Number'].dropna().astype(str):
+        for part in val.split(','):
+            clean_look = part.strip()
+            if clean_look:
+                all_look_ids.add(clean_look)
 
-    for signature, count in sorted_signatures:
-        data = unique_items_map[signature]
-        desc = (
-            f"- {data.get('Name')} ({count} items): {data.get('Subcategory')} | {data.get('Primary Color')}"
-        )
-        unique_list.append(desc)
+    summary = df.groupby(['Name', 'Subcategory', 'Primary Color']).agg(
+        total_items=('Look Number', 'count'),
+        unique_look_count=('Look Number', 'nunique'),
+        look_list=('Look Number', lambda x: ", ".join(sorted(x.unique().astype(str))))
+    ).reset_index()
 
-    inventory_string = "\n".join(unique_list)
+    report = ["Qty(UniqueLooks)|Name|Subcategory|Color|LookNumbers"]
+    for _, row in summary.iterrows():
+        qty_label = f"{row['total_items']}({row['unique_look_count']}L)" if row['total_items'] != row['unique_look_count'] else str(row['total_items'])
+        report.append(f"{qty_label}|{row['Name']}|{row['Subcategory']}|{row['Primary Color']}|{row['look_list']}")
 
-    return (
-        f"{stats_header}\n"
-        "Full Inventory (Sorted by Frequency):\n"
-        f"{inventory_string}"
-    )
+    return {
+        "query_metadata": {
+            "total_items_found": len(df),
+            "total_unique_looks": len(all_look_ids),
+            "subcategory_distribution": df['Subcategory'].value_counts().to_dict()
+        },
+        "inventory_data": report
+    }
