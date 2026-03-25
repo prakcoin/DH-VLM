@@ -1,6 +1,6 @@
 ---
 name: knowledge-base-retrieval
-description: Retrieves relevant metadata from the knowledge base based on a query. Use for both individual item details (reference codes, materials, design features) and broader multi-item searches.
+description: Retrieves relevant metadata from the knowledge base based on a query. Use this to retrieve relevant item details (reference codes, materials, design features) from a single item.
 allowed-tools: retrieve
 ---
 # Knowledge Base Retrieval

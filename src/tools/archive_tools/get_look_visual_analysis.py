@@ -192,7 +192,7 @@ def get_image_details(image_filenames, query: str):
         return f"Error analyzing images {image_filenames}: {str(e)}"
 
 @tool 
-def get_visual_confirmation(query: str) -> str:
+def get_look_visual_analysis(query: str) -> str:
     """
     Perform visual analysis based on a query, in order to confirm details not present in the knowledge base.
 
