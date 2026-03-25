@@ -1,7 +1,7 @@
 ---
 name: collection-aggregation
 description: Performs deterministic aggregation across the archive. Use this for counting items, identifying recurring themes (motifs, colors, silhouettes), or verifying item presence across many looks.
-allowed-tools: get_collection_summary
+allowed-tools: get_collection_inventory
 ---
 # Collection Analysis
 
