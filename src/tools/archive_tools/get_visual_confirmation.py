@@ -5,7 +5,6 @@ import json
 import base64
 from urllib.parse import urlparse
 import os
-import boto3
 from strands import Agent, tool
 from strands.models import BedrockModel
 from strands_tools import retrieve, stop
