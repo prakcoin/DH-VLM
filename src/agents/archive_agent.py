@@ -1,6 +1,6 @@
 from strands import Agent, tool, AgentSkills
 from strands.models import BedrockModel
-from src.tools.archive_tools import get_collection_summary, get_look_composition, get_look_visual_analysis, get_image_input
+from src.tools.archive_tools import look_analysis, collection_inventory, image_input
 from strands_tools import retrieve
 from src.agents.hooks import LimitToolCounts, ForceSingleExecutionHook
 
@@ -38,7 +38,7 @@ def archive_assistant(query: str) -> str:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
-            tools=[get_collection_summary, get_look_composition, get_look_visual_analysis, get_image_input, retrieve],
+            tools=[collection_inventory, look_analysis, image_input, retrieve],
             plugins=[plugin],
             hooks=[LimitToolCounts(max_tool_counts={"retrieve": 3}), ForceSingleExecutionHook()]
         )

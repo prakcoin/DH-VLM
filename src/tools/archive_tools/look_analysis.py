@@ -4,11 +4,17 @@ import boto3
 import json
 import base64
 from urllib.parse import urlparse
-import os
+import csv
+import io
+import logging
+
 from strands import Agent, tool
 from strands.models import BedrockModel
 from strands_tools import retrieve, stop
 from src.agents.hooks import LimitToolCounts
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 s3 = boto3.client('s3', region_name=os.getenv("AWS_REGION"))
 bedrock = boto3.client('bedrock-runtime', region_name=os.getenv("AWS_REGION"))
@@ -39,10 +45,11 @@ Step 3- Respond using ONLY confirmed observations. Do not infer brand, season, o
 
 KB_PROMPT = """
 Role:
-Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query.
+Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query. 
+Using the retrieved look number, retrieve the look composition by passing the look number into the get_look_composition tool.
 
 Guidelines: 
-Use the retrieve tool to get the relevant information, then return it.
+Return both the retrieved knowledge base information as well as the look composition.
 If retrieve returns no results or an error, use the stop tool with reason INFO_NOT_AVAILABLE.
 If the look number is already included in the query, there is no need to retrieve it from the knowledge base.
 Make sure the look number retrieved is a positive integer, and not a word or float. 
@@ -52,8 +59,7 @@ VISUAL_PROMPT = """
 Analyze look images for fit, silhouette, texture, and aesthetic details.
 
 Guidelines:
-Use the look number provided from the retrieved results to get the filenames using the get_look_images tool. 
-Pass the retrieved image filenames into get_image_details in order to retrieve detailed visual analysis.
+Use the retrieved image filenames and pass them into get_image_details in order to retrieve detailed visual analysis.
 If get_look_images returns an empty list or an error, use the stop tool with reason IMAGE_NOT_AVAILABLE.
 """
 
@@ -67,27 +73,25 @@ Report discrepancies between visual and metadata observations.
 """
 
 @tool
-def get_look_images(look_number: str):
+def get_look_composition(look_number: str):
     """
-    Retrieve the runway images for a specific look.
+    Retrieve archival composition data and the runway images for a specific look.
     
-    Use this tool when a user asks to see a specific runway look. Only use it when you have a look number.
+    Use this tool when you want to list every item included in a specific runway look, or when a user asks to see a specific runway look. Only use it when you have a look number.
     
     Args:
     look_number (str): The unique identifier for the look, e.g., "1".
 
     Returns: 
-    A list of image URLs for the look.
+    A list of every item in the requested look, and a list of image URLs for the look.
     """
     prefix = f"{IMAGE_FOLDER}look{look_number}_"
-    
     image_objects = s3.list_objects_v2(
         Bucket=BUCKET_NAME, 
         Prefix=prefix,
     )
     
     image_urls = []
-    
     if 'Contents' in image_objects:
         for obj in image_objects['Contents']:
             key = obj['Key']
@@ -95,7 +99,25 @@ def get_look_images(look_number: str):
                 full_url = f"{CLOUDFRONT_DOMAIN}/{key}"
                 image_urls.append(full_url)
     
-    return image_urls
+    clean_id = str(look_number).strip().lower().replace('look', '').strip()
+    target_file = f"{FOLDER_PREFIX}look_{clean_id}.csv"
+    
+    try:
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=target_file)
+        content = response['Body'].read().decode('utf-8-sig')
+        data = list(csv.DictReader(io.StringIO(content)))
+        
+        report = f"Look {look_number} Composition:\n"
+        report += f"Items: {str(data)}\n"
+        report += f"Images: {', '.join(image_urls) if image_urls else 'No images found.'}"
+        return report
+
+    except s3.exceptions.NoSuchKey:
+        logger.error(f"File not found: {target_file}")
+        return f"I'm sorry, I couldn't find archival data for Look {look_number}."
+    except Exception as e:
+        logger.error(f"Error fetching {target_file}: {str(e)}")
+        return f"Error retrieving data for Look {look_number}."
 
 def parse_filenames_from_string(filenames_str):
     s = filenames_str.strip().lstrip("[").rstrip("]")
@@ -175,38 +197,38 @@ def get_image_details(image_filenames, query: str):
         return f"Error analyzing images {image_filenames}: {str(e)}"
 
 @tool 
-def get_look_visual_analysis(query: str) -> str:
+def get_look_analysis(query: str) -> str:
     """
-    Perform visual analysis based on a query, in order to confirm details not present in the knowledge base.
+    Perform look analysis based on a query.
 
-    Use this tool when a query requires direct visual inspection of garments, accessories, layering, closures, construction details, or physical attributes that cannot be reliably inferred from metadata alone. 
+    Use this tool when a query requires a look breakdown, visual analysis of a look, or general questions about a look. 
 
     Args:
-    query (str): A specific visual question to answer.
+    query (str): A specific question about a look to answer.
 
     Returns:
-    A structured textual analysis based only on confirmed visual observations.
+    A structured textual analysis.
     """
     limit_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_hook])
+        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_hook])
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=VISUAL_PROMPT, tools=[get_look_images, get_image_details, stop])
+        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop])
     synthesis_agent = Agent(model=bedrock_model,
         system_prompt=SYNTHESIS_PROMPT)
 
-    kb_results = kb_agent(f"Retrieve the look number based on this query: "
+    kb_results = kb_agent(f"Retrieve the look number and composition based on this query: "
                           f"Query: {query}.")
     if not str(kb_results).strip():
         return "No matching look number found in the knowledge base."
-    visual_results = visual_agent(f"Answer the query based on the retrieved look number. "
+    visual_results = visual_agent(f"Answer the query based on the retrieved look number and composition. "
                                   f"Query: {query}. "
                                   f"Retrieved results: {str(kb_results)}.")
     if not str(visual_results).strip():
         return "Visual analysis for this look is currently unavailable."
-    response = synthesis_agent(f"Synthesize a final result for the query based on the visual and knowledge base results. "
+    response = synthesis_agent(f"Synthesize a final result for the query based on the visual and textual results. "
                                f"Query {query}. "
                                f"Visual results: {str(visual_results)}. " 
-                               f"Knowledge base results: {str(kb_results)}.")
+                               f"Textual results: {str(kb_results)}.")
     return response
