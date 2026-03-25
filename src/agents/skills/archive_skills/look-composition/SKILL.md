@@ -8,7 +8,7 @@ allowed-tools: get_look_composition
 This skill is for obtaining a look composition and images based on a look number. 
 
 1. Pass the look number into the get_look_composition tool to get the full look composition and look images.
-3. Return both the look composition and the look images to the user.
+2. Return both the look composition and the look images to the user.
 
 ## Guidelines
 A look number must be provided by the user.

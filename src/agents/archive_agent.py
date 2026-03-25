@@ -2,7 +2,7 @@ from strands import Agent, tool, AgentSkills
 from strands.models import BedrockModel
 from src.tools.archive_tools import get_look_composition, get_visual_confirmation, get_image_input
 from strands_tools import retrieve
-from src.agents.hooks import LimitToolCounts
+from src.agents.hooks import LimitToolCounts, ForceSingleExecutionHook
 
 bedrock_model = BedrockModel(
     model_id="us.amazon.nova-pro-v1:0",
@@ -35,14 +35,12 @@ def archive_assistant(query: str) -> str:
     Textual response synthesized from internal archival tools.
     """
     try:
-        limit_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
-
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
             tools=[get_look_composition, get_visual_confirmation, get_image_input, retrieve],
             plugins=[plugin],
-            hooks=[limit_hook]
+            hooks=[LimitToolCounts(max_tool_counts={"retrieve": 3}), ForceSingleExecutionHook()]
         )
 
         response = archive_agent(query)

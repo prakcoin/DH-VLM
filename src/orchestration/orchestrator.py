@@ -4,7 +4,7 @@ from strands.session.file_session_manager import FileSessionManager
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from agents.archive_agent import archive_assistant
 from src.agents.search_agent import search_assistant
-from src.agents.hooks import NotifyOnlyGuardrailsHook
+from src.agents.hooks import NotifyOnlyGuardrailsHook, ForceSingleExecutionHook
 
 ORCHESTRATOR_PROMPT = """
 Role: 
@@ -42,7 +42,7 @@ class Orchestrator:
             conversation_manager=self.conversation_manager,
             callback_handler=None,
             tools=[archive_assistant, search_assistant],
-            hooks=[NotifyOnlyGuardrailsHook("ys4jzzz12h6r", "14")]
+            hooks=[NotifyOnlyGuardrailsHook("ys4jzzz12h6r", "14"), ForceSingleExecutionHook()]
         )
 
     def ask(self, query: str):

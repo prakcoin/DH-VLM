@@ -1,6 +1,6 @@
 import boto3
 from strands import tool
-from strands.hooks import HookRegistry, HookProvider, BeforeToolCallEvent, BeforeInvocationEvent, BeforeNodeCallEvent, MessageAddedEvent, AfterInvocationEvent
+from strands.hooks import HookRegistry, HookProvider, BeforeToolCallEvent, BeforeInvocationEvent, MessageAddedEvent, AfterInvocationEvent, AfterNodeCallEvent
 from threading import Lock
 
 class LimitToolCounts(HookProvider):
@@ -39,6 +39,18 @@ class LimitToolCounts(HookProvider):
                 f"Tool '{tool_name}' has been invoked too many and is now being throttled. "
                 f"DO NOT CALL THIS TOOL ANYMORE "
             )
+
+class ForceSingleExecutionHook(HookProvider):
+    def register_hooks(self, registry: HookRegistry) -> None:
+        registry.add_callback(AfterNodeCallEvent, self.terminate_after_call)
+
+    def terminate_after_call(self, event: AfterNodeCallEvent) -> None:
+        request_state = event.invocation_state.get("request_state", {})
+        
+        request_state["stop_event_loop"] = True
+        
+        tool_name = event.tool_use.get("name", "unknown tool")
+        print(f"Path Locked: '{tool_name}' completed. stop_event_loop set to True.")
 
 class NotifyOnlyGuardrailsHook(HookProvider):
     def __init__(self, guardrail_id: str, guardrail_version: str):
