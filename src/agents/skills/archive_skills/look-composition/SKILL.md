@@ -1,6 +1,6 @@
 ---
 name: look-composition
-description: Retrieves the composition and images of a look. Use when a user asks for a look breakdown, or if they ask to see a look.
+description: Retrieves a list of items that make up a look, as well as the look images. Use when a user asks for a look breakdown, or if they ask to see a look.
 allowed-tools: get_look_composition
 ---
 # Look Composition

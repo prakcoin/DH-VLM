@@ -1,7 +1,7 @@
 ---
-name: visual-confirmation
-description: Answers queries involving visual analysis or identifying visual characteristics, when the answer isn't present in the knowledge base. Use this skill when knowledge base retrieval is insufficient to answer a specific query.
-allowed-tools: get_visual_confirmation
+name: look-visual-analysis
+description: Answers queries involving identifying visual characteristics of looks, when the answer isn't present in the knowledge base. Use this skill when knowledge base retrieval is insufficient to answer a specific query.
+allowed-tools: get_look_visual_analysis
 ---
 # Visual Confirmation
 
