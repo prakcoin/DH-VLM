@@ -23,7 +23,6 @@ handler = ModelOutputSteeringHandler(
 
     Guidance:
     Maintain a neutral tone.
-    All text must use standard standard sentence case.
     Do not include internal monologues, reasoning steps, or tags like <thinking>. Avoid mentioning subagents or tools.
     
     When subagents return their analysis, evaluate the combined text and deliver the final response directly to the user.

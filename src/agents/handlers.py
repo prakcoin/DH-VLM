@@ -1,8 +1,7 @@
 from typing import TYPE_CHECKING, Any, Literal, cast
 from pydantic import BaseModel, Field
 from strands import Agent
-from strands.vended_plugins.steering.core.handler import SteeringHandler
-from strands.vended_plugins.steering import Guide, ModelSteeringAction, Proceed, SteeringHandler
+from strands.vended_plugins.steering import Guide, ModelSteeringAction, Proceed, SteeringHandler, Interrupt
 from strands.models import BedrockModel
 from strands.types.content import Message
 
@@ -72,3 +71,131 @@ Please provide a new response."""
                 return Guide(reason=guidance)
             case _:
                 return Proceed(reason="Unknown decision, defaulting to proceed")
+
+class ToolInputSteeringHandler(SteeringHandler):
+    async def steer_before_tool(self, *, agent, tool_use, **kwargs):
+        tool_name = tool_use.get("name", "")
+        args = tool_use.get("input", {})
+
+        print(f"TOOL NAME: {tool_name} -------------------------------------------------")
+
+
+        ctx = self.steering_context.data.get()
+        ledger = ctx.get("ledger", {}).get("tool_calls", [])
+
+        # --- WORKFLOW 1 & 3: KB RETRIEVAL LOGIC ---
+        if tool_name == "retrieve":
+            query = args.get("query", "").lower()
+            forbidden = ["dior", "homme", "aw04", "autumn", "winter", "2004"]
+            if any(word in query for word in forbidden):
+                return Guide(reason="Remove brand names/seasons from tool input. Use core subject only.")
+
+        # --- WORKFLOW 1: LOOK COMPOSITION SEQUENCE ---
+        if tool_name == "get_look_composition":
+            look_num = args.get("look_number")
+
+            print(f"LOOK NUMBER: {look_num} -------------------------------------------------")
+
+            if not look_num:
+                return Guide(reason="The 'look_number' is missing. Please provide it.")
+
+            look_str = str(look_num).strip()
+            print(look_str)
+
+            if not look_str.isdigit():
+                print(f"INVALID LOOK NUMBER -------------------------------------------------")
+                return Guide(
+                    reason=f"The look number '{look_str}' is invalid. It must be a "
+                        "positive integer (e.g., 123). No decimals or words."
+                )
+
+            if int(look_str) <= 0:
+                return Guide(reason="Look number must be greater than 0.")
+
+        if tool_name == "get_image_details":
+            kb_success = any(c["tool_name"] == "retrieve" and c["status"] == "success" for c in ledger)
+            lc_success = any(c["tool_name"] == "get_look_composition" and c["status"] == "success" for c in ledger)
+
+            if not kb_success or not lc_success:
+                missing = []
+                if not kb_success: missing.append("'retrieve'")
+                if not lc_success: missing.append("'get_look_composition'")
+                
+                return Guide(
+                    reason=f"Prerequisites missing. You must successfully call {', and '.join(missing)} "
+                        "before using this tool."
+                )
+            
+            filenames = args.get("image_filenames")
+            query = args.get("query", "")
+
+            if not isinstance(filenames, list):
+                return Guide(
+                    reason="The 'image_filenames' argument must be a LIST of strings, "
+                        "even if there is only one image."
+                )
+
+            if len(filenames) == 0:
+                return Guide(reason="You must provide at least one filename to analyze.")
+
+            valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+            for f in filenames:
+                if not str(f).lower().endswith(valid_exts):
+                    return Guide(
+                        reason=f"File '{f}' is not a supported image format. "
+                            "Please use PNG, JPEG, GIF, or WebP."
+                    )
+
+            if len(query.strip()) < 5:
+                return Guide(
+                    reason="Your visual query is too short. Please provide a specific "
+                        "question about the garment (e.g., 'Describe the sleeve construction')."
+                )
+
+        # --- WORKFLOW 2: IMAGE VALIDATION ---
+        if tool_name == "image_retrieve":
+            path_field = "image_path"
+            valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+            val = args.get(path_field)
+            if val and not str(val).lower().endswith(valid_exts):
+                return Guide(reason=f"{field} must be PNG, JPEG, GIF, or WebP.")
+            
+        if tool_name == "get_cloudfront_url":
+            ir_success = any(c["tool_name"] == "image_retrieve" and c["status"] == "success" for c in ledger)
+            if not ir_success:
+                return Guide(reason="You must call 'image_retrieve' to get images before getting URLs.")
+
+        if tool_name == "get_image_comparison":
+            ir_success = any(c["tool_name"] == "image_retrieve" and c["status"] == "success" for c in ledger)
+            gc_success = any(c["tool_name"] == "get_cloudfront_url" and c["status"] == "success" for c in ledger)
+
+            if not ir_success or not gc_success:
+                if not ir_success:
+                    return Guide(reason="Step 1: Use 'image_retrieve' to find matching images. Step 2: Use 'get_cloudfront_url' to make them accessible.")
+                else:
+                    return Guide(reason="Images found, but they are not accessible. You MUST pass the retrieved file paths into 'get_cloudfront_url' before presenting them.")
+
+            if args.get("query_filename") == args.get("retrieved_filename"):
+                return Guide(reason="Comparison requires two DIFFERENT images.")
+
+            path_fields = ["image_path", "query_filename", "retrieved_filename"]
+            valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+            for field in path_fields:
+                val = args.get(field)
+                if val and not str(val).lower().endswith(valid_exts):
+                    return Guide(reason=f"{field} must be PNG, JPEG, GIF, or WebP.")
+
+        # --- WORKFLOW 3: SEARCH LOGIC ---
+        if tool_name == "tavily_search":
+            kb_success = any(c["tool_name"] == "retrieve" and c["status"] == "success" for c in ledger)
+            if not kb_success:
+                return Guide(reason="You must call 'retrieve' to get metadata before searching.")
+
+            query = args.get("query", "").lower()
+            forbidden = ["dior", "aw04", "autumn", "winter", "2004"]
+            if any(word in query for word in forbidden):
+                return Guide(reason="Remove brand names/seasons from tool input. Use core subject only.")
+
+
+        return Proceed(reason="Tool input matches workflow requirements.")

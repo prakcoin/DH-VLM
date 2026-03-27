@@ -13,7 +13,7 @@ from strands.models import BedrockModel
 from strands_tools import retrieve, stop
 from src.agents.hooks import LimitToolCounts
 from strands.vended_plugins.steering import LLMSteeringHandler
-from src.agents.handlers import ModelOutputSteeringHandler
+from src.agents.handlers import ModelOutputSteeringHandler, ToolInputSteeringHandler
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -47,11 +47,22 @@ Step 3- Respond using ONLY confirmed observations. Do not infer brand, season, o
 
 KB_PROMPT = """
 Role:
-Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query. 
-Using the retrieved look number, retrieve the look composition by passing the look number into the get_look_composition tool.
+Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query using the retrieve tool. 
+Retrieve the look composition using the look number (either retrieved from the knowledge base, or provided by the user) and pass it in the get_look_composition tool. 
 If retrieve returns no results or an error, use the stop tool with reason INFO_NOT_AVAILABLE.
+If there is no look number provided, retrieve it using the query and the retrieve tool. 
 If the look number is already included in the query, there is no need to retrieve it from the knowledge base.
 """
+
+kb_tool_handler = ToolInputSteeringHandler(
+    # system_prompt="""
+    # You are providing guidance to ensure proper formatting of tool inputs.
+
+    # Guidance:
+    # Do not retrieve using the full query, instead extract the core subject (e.g., "leather jacket") and search with this instead.
+    # Using the retrieved look number, retrieve the look composition by passing the look number into the get_look_composition tool.    
+    # """
+)
 
 kb_handler = ModelOutputSteeringHandler(
     system_prompt="""
@@ -71,20 +82,27 @@ kb_handler = ModelOutputSteeringHandler(
 VISUAL_PROMPT = """
 Role:
 Analyze look images for fit, silhouette, texture, and aesthetic details.
-Use the retrieved image filenames and pass them into get_image_details in order to retrieve detailed visual analysis.
-If get_look_images returns an empty list or an error, use the stop tool with reason IMAGE_NOT_AVAILABLE.
 """
 
-visual_handler = ModelOutputSteeringHandler(
-    system_prompt="""
-    You are providing guidance to ensure proper formatting of information.
+visual_tool_handler = ToolInputSteeringHandler(
+    # system_prompt="""
+    # You are providing guidance to ensure proper formatting of tool inputs.
 
-    Guidance:
-    Ensure a detailed visual analysis is provided.
-
-    When the tools return their responses, evaluate the text and deliver the final response directly to the user.
-    """
+    # Guidance:
+    # Use the retrieved image filenames and pass them into get_image_details in order to retrieve detailed visual analysis.
+    # """
 )
+
+# visual_handler = ModelOutputSteeringHandler(
+#     system_prompt="""
+#     You are providing guidance to ensure proper formatting of information.
+
+#     Guidance:
+#     Ensure a detailed visual analysis is provided.
+
+#     When the tools return their responses, evaluate the text and deliver the final response directly to the user.
+#     """
+# )
 
 SYNTHESIS_PROMPT = """
 Role:
@@ -93,17 +111,17 @@ Combine visual analysis with metadata for the final answer.
 Report discrepancies between visual and metadata observations.
 """
 
-synthesis_handler = ModelOutputSteeringHandler(
-    system_prompt="""
-    You are providing guidance to ensure proper formatting of information.
+# synthesis_handler = ModelOutputSteeringHandler(
+#     system_prompt="""
+#     You are providing guidance to ensure proper formatting of information.
 
-    Guidance:
-    Determine if the results are conclusive. If they aren't, state this.
-    Ensure a fully synthesized answer is provided.
+#     Guidance:
+#     Determine if the results are conclusive. If they aren't, state this.
+#     Ensure a fully synthesized answer is provided.
     
-    When the tools return their responses, evaluate the text and deliver the final response directly to the user.
-    """
-)
+#     When the tools return their responses, evaluate the text and deliver the final response directly to the user.
+#     """
+# )
 
 
 @tool
@@ -246,11 +264,11 @@ def get_look_analysis(query: str) -> str:
     limit_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_hook], plugins=[kb_handler])
+        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_hook], plugins=[kb_handler, kb_tool_handler])
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], plugins=[visual_handler])
+        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], plugins=[visual_tool_handler])
     synthesis_agent = Agent(model=bedrock_model,
-        system_prompt=SYNTHESIS_PROMPT, plugins=[synthesis_handler])
+        system_prompt=SYNTHESIS_PROMPT)
 
     kb_results = kb_agent(f"Retrieve the look number and composition based on this query: "
                           f"Query: {query}.")

@@ -4,7 +4,7 @@ from strands_tools import retrieve, stop
 from tavily import TavilyClient
 from src.agents.hooks import LimitToolCounts
 from strands.vended_plugins.steering import LLMSteeringHandler
-from src.agents.handlers import ModelOutputSteeringHandler
+from src.agents.handlers import ModelOutputSteeringHandler, ToolInputSteeringHandler
 import urllib.request
 import json
 import logging
@@ -28,8 +28,16 @@ Role:
 Retrieve the items reference code, primary color, secondary color(s), primary outer material, secondary outer material(s), and additional notes to be used in search, and for final verification.
 Use the retrieve tool to get the relevant information, then return it.
 If retrieve returns no results or an error, use the stop tool with reason INFO_NOT_AVAILABLE.
-Do not retrieve using the full query, instead extract the core subject (e.g., "leather jacket") and search with this instead.    
 """
+
+kb_tool_handler = ToolInputSteeringHandler(
+    # system_prompt="""
+    # You are providing guidance to ensure proper formatting of tool inputs.
+
+    # Guidance:
+    # Do not retrieve using the full query, instead extract the core subject (e.g., "leather jacket") and search with this instead.
+    # """
+)
 
 kb_handler = ModelOutputSteeringHandler(
     system_prompt="""
@@ -46,12 +54,19 @@ kb_handler = ModelOutputSteeringHandler(
 SEARCH_PROMPT = """
 Role:
 Find current and past listings for items using the tavily_search tool.
-Always include season and collection identifiers if the user query is vague.
-Search using the query and the reference code and color retrieved from the knowledge base, combine them as one query.
 If the search returns no results, use the stop tool with reason RESULTS_NOT_AVAILABLE.
-Do not search using the raw user query. Extract the core subject (e.g., "fur hooded jacket") and merge it with the retrieved knowledge base metadata. Example: input = "Can you find listings of the fur hooded jacket" + knowledge base "black, 4HH5043801" = black fur hooded leather jacket 4HH5043801.
-Do not include the brand name or season in your input to avoid redundancy, as the tavily_search tool automatically applies hardcoded prefixes to search queries. Do not include "Dior", "AW04", "Autumn/Winter 2004", or similar keywords.    
 """
+
+search_tool_handler = ToolInputSteeringHandler(
+    # system_prompt="""
+    # You are providing guidance to ensure proper formatting of tool inputs.
+
+    # Guidance:
+    # Always include season and collection identifiers if the user query is vague.
+    # Search using the query and the reference code and color retrieved from the knowledge base, combine them as one query.
+    # Do not search using the raw user query. Extract the core subject (e.g., "fur hooded jacket") and merge it with the retrieved knowledge base metadata. Example: input = "Can you find listings of the fur hooded jacket" + knowledge base "black, 4HH5043801" = black fur hooded leather jacket 4HH5043801.
+    # """
+)
 
 search_handler = ModelOutputSteeringHandler(
     system_prompt="""
@@ -238,9 +253,9 @@ def listing_search(query: str) -> str:
     limit_search_hook = LimitToolCounts(max_tool_counts={"tavily_search": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler])
+        system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler, kb_tool_handler])
     google_agent = Agent(model=bedrock_model,
-        system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler])
+        system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler, search_tool_handler])
     aggregator_agent = Agent(model=bedrock_model,
         system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], plugins=[aggregator_handler])
 
