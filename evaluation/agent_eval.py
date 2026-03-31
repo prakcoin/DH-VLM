@@ -1,6 +1,5 @@
-from strands import Agent
-from strands_evals import Case, Experiment, ActorSimulator
-from strands_evals.evaluators import HelpfulnessEvaluator, GoalSuccessRateEvaluator, FaithfulnessEvaluator, ToolSelectionAccuracyEvaluator 
+from strands_evals import Case, Experiment
+from strands_evals.evaluators import HelpfulnessEvaluator, GoalSuccessRateEvaluator, FaithfulnessEvaluator, ToolSelectionAccuracyEvaluator, OutputEvaluator, TrajectoryEvaluator
 from strands_evals.mappers import StrandsInMemorySessionMapper
 from strands_evals.telemetry import StrandsEvalsTelemetry
 import sys
@@ -43,7 +42,25 @@ async def get_response(case: Case) -> str:
 
     return {"output": str(response), "trajectory": session}
 
+OUTPUT_RUBRIC = """
+Evaluate the response based on:
+1. Accuracy - Is the information correct?
+2. Completeness - Does it fully answer the question?
+3. Clarity - Is it easy to understand?
+
+Score 1.0 if all criteria are met excellently.
+Score 0.5 if some criteria are partially met.
+Score 0.0 if the response is inadequate.
+"""
+
+TRAJECTORY_RUBRIC = """
+The trajectory should be in the correct order with all of the steps as the expected.
+The agent should know when and what action is logical. Strictly score 0 if any step is missing.
+"""
+
 evaluators = [
+    OutputEvaluator(rubric=OUTPUT_RUBRIC, model='us.amazon.nova-pro-v1:0'),
+    TrajectoryEvaluator(rubric=TRAJECTORY_RUBRIC, model='us.amazon.nova-pro-v1:0'),
     HelpfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
     FaithfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
     ToolSelectionAccuracyEvaluator(model='us.amazon.nova-pro-v1:0'),
