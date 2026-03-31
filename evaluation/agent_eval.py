@@ -6,8 +6,23 @@ from strands_evals.telemetry import StrandsEvalsTelemetry
 import sys
 import os
 import asyncio
+import json
+import boto3
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+def load_secrets():
+    secret_name = "dh-agent/config"
+    region_name = "us-east-1"
+
+    client = boto3.client('secretsmanager', region_name=region_name)
+    response = client.get_secret_value(SecretId=secret_name)
+    secrets = json.loads(response['SecretString'])
+
+    for key, value in secrets.items():
+        os.environ[key] = str(value)
+
+load_secrets()
 
 from src.orchestration.orchestrator import Orchestrator
 
@@ -35,23 +50,19 @@ evaluators = [
     GoalSuccessRateEvaluator(model='us.amazon.nova-pro-v1:0')
 ]
 
-test_cases = [
-    Case[str, str](
-        input="What does look 1 consist of?",
-        expected_output="Look 1 consists of a 1B blazer, a leather tie, a pinstripe shirt, trousers, suede moto boots, aviator sunglasses, a leather belt, and a bandana bracelet.",
-        metadata={"category": "look_composition", "expected_tool": "look_analysis", "goal": "look_analysis"}
-    ),
-    Case[str, str](
-        input="What is the reference code for the beetle leather jacket?",
-        expected_output="The reference code for the beetle leather jacket is 4HH5041101.",
-        metadata={"category": "retrieval", "expected_tool": "retrieve", "goal": "retrieve"}
-    ),
-    Case[str, str](
-        input="What material is the jacket in look 2 made from?",
-        expected_output="The jacket in look 2 is made from leather, more specifically calfskin.",
-        metadata={"category": "retrieval", "expected_tool": "retrieve", "goal": "retrieve"}
-    )
-]
+EVAL_MODE = "general"
+INPUT_FILE = f"datasets/eval_{EVAL_MODE}.json"
+with open(INPUT_FILE, 'r') as f:
+    EVAL_DATA = json.load(f)
+
+test_cases = []
+
+for conversation in EVAL_DATA:
+    test_cases.append(Case[str, str](
+            input=conversation["query"],
+            expected_output=conversation["reference"],
+            metadata=conversation["metadata"]
+    ))
 
 async def run_async_evaluation():
     experiment = Experiment[str, str](cases=test_cases, evaluators=evaluators)
