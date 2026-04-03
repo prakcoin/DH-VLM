@@ -15,6 +15,7 @@ from strands.telemetry import StrandsTelemetry
 
 strands_telemetry = StrandsTelemetry()
 strands_telemetry.setup_console_exporter()
+strands_telemetry.setup_otlp_exporter()
 strands_telemetry.setup_meter(
     enable_console_exporter=True,
     enable_otlp_exporter=True)

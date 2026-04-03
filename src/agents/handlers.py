@@ -5,14 +5,7 @@ from strands.vended_plugins.steering import Guide, ModelSteeringAction, Proceed,
 from strands.models import BedrockModel
 from strands.types.content import Message
 from PIL import Image
-import logging
 import os
-
-log_level = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
-logging.basicConfig(format="[%(asctime)s] %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-logger.setLevel(log_level)
-
 
 if TYPE_CHECKING:
     from strands import Agent as AgentType

@@ -53,6 +53,7 @@ class Orchestrator:
     def ask(self, query: str):
         try:
             response = self.agent(query)
+            print(response.metrics.get_summary())
             if response.stop_reason == "guardrail_intervened":
                 return "Sorry, this question is out of scope. This archive is strictly dedicated to Dior Homme Autumn/Winter 2004."
             return response.message
