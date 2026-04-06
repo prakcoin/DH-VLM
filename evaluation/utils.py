@@ -2,13 +2,17 @@ from strands_evals import Case, Experiment, ActorSimulator
 from strands_evals.evaluators import HelpfulnessEvaluator, GoalSuccessRateEvaluator, FaithfulnessEvaluator, ToolSelectionAccuracyEvaluator, OutputEvaluator, TrajectoryEvaluator
 from strands_evals.mappers import StrandsInMemorySessionMapper
 from strands_evals.telemetry import StrandsEvalsTelemetry
+from datetime import datetime
+from pathlib import Path
 import sys
 import os
-import asyncio
 import json
 import boto3
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
+
+os.chdir(project_root)
 
 def load_secrets():
     secret_name = "dh-agent/config"
@@ -23,20 +27,18 @@ def load_secrets():
 
 load_secrets()
 
-from src.orchestration.orchestrator import Orchestrator
-
 telemetry = StrandsEvalsTelemetry().setup_in_memory_exporter()
 memory_exporter = telemetry.in_memory_exporter
 
-def get_multiturn_response(case: Case) -> str:
+async def get_multiturn_response(case: Case) -> str:
+    from src.orchestration.orchestrator import Orchestrator
+
     simulator = ActorSimulator.from_case_for_user_simulator(
         case=case,
         model='us.amazon.nova-pro-v1:0',
         max_turns=5
     )
-    simulator.agent.model = 'us.amazon.nova-pro-v1:0'
-    simulator.model_id = 'us.amazon.nova-pro-v1:0'
-    
+
     agent = Orchestrator()
     agent.agent.trace_attributes = {
         "gen_ai.conversation.id": case.session_id,
@@ -74,8 +76,9 @@ def get_multiturn_response(case: Case) -> str:
 
     return {"output": agent_message, "trajectory": session, "conversation_history": conversation_history}
 
-
 async def get_response(case: Case) -> str:
+    from src.orchestration.orchestrator import Orchestrator
+
     agent = Orchestrator()
     agent.agent.trace_attributes = {
         "gen_ai.conversation.id": case.session_id,
@@ -89,33 +92,36 @@ async def get_response(case: Case) -> str:
 
     return {"output": str(response), "trajectory": session}
 
-OUTPUT_RUBRIC = """
-Evaluate the response based on:
-1. Accuracy - Is the information correct?
-2. Completeness - Does it fully answer the question?
-3. Clarity - Is it easy to understand?
+def create_evaluators():
+    OUTPUT_RUBRIC = """
+    Evaluate the response based on:
+    1. Accuracy - Is the information correct?
+    2. Completeness - Does it fully answer the question?
+    3. Clarity - Is it easy to understand?
 
-Score 1.0 if all criteria are met excellently.
-Score 0.5 if some criteria are partially met.
-Score 0.0 if the response is inadequate.
-"""
+    Score 1.0 if all criteria are met excellently.
+    Score 0.5 if some criteria are partially met.
+    Score 0.0 if the response is inadequate.
+    """
 
-TRAJECTORY_RUBRIC = """
-The trajectory should be in the correct order with all of the steps as the expected.
-The agent should know when and what action is logical. Strictly score 0 if any step is missing.
-"""
+    TRAJECTORY_RUBRIC = """
+    The trajectory should be in the correct order with all of the steps as the expected.
+    The agent should know when and what action is logical. Strictly score 0 if any step is missing.
+    """
 
-evaluators = [
-    OutputEvaluator(rubric=OUTPUT_RUBRIC, model='us.amazon.nova-pro-v1:0'),
-    TrajectoryEvaluator(rubric=TRAJECTORY_RUBRIC, model='us.amazon.nova-pro-v1:0'),
-    HelpfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
-    FaithfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
-    ToolSelectionAccuracyEvaluator(model='us.amazon.nova-pro-v1:0'),
-    GoalSuccessRateEvaluator(model='us.amazon.nova-pro-v1:0')
-]
+    evaluators = [
+        OutputEvaluator(rubric=OUTPUT_RUBRIC, model='us.amazon.nova-pro-v1:0'),
+        TrajectoryEvaluator(rubric=TRAJECTORY_RUBRIC, model='us.amazon.nova-pro-v1:0'),
+        HelpfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
+        FaithfulnessEvaluator(model='us.amazon.nova-pro-v1:0'),
+        ToolSelectionAccuracyEvaluator(model='us.amazon.nova-pro-v1:0'),
+        GoalSuccessRateEvaluator(model='us.amazon.nova-pro-v1:0')
+    ]
 
-def create_dataset(mode="followups2"):
-    input_data = f"datasets/eval_{mode}.json"
+    return evaluators
+
+def create_dataset(mode="general"):
+    input_data = f"evaluation/datasets/eval_{mode}.json"
     with open(input_data, 'r') as f:
         eval_data = json.load(f)
 
@@ -131,26 +137,39 @@ def create_dataset(mode="followups2"):
     
     return test_cases
 
-test_cases = create_dataset()
+async def run_async_evaluation(mode, test_cases, evaluators, response_fn):
+    experiment = Experiment[str, str](cases=test_cases, evaluators=evaluators)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_dir = Path("evaluation/results") / mode / timestamp
+    reports_dir = base_dir / "reports"
+    
+    reports_dir.mkdir(parents=True, exist_ok=True)
 
-experiment = Experiment(cases=test_cases, evaluators=evaluators)
-reports = experiment.run_evaluations(get_multiturn_response)
+    reports = await experiment.run_evaluations_async(response_fn)
 
-# Display results
-for report in reports:
-    print(f"\n{'='*60}")
-    print(f"Evaluator: {report.evaluator_name}")
-    print(f"{'='*60}")
-    report.run_display()
+    experiment.to_file(base_dir / "experiment_config.json")
 
-# async def run_async_evaluation():
-#     experiment = Experiment[str, str](cases=test_cases, evaluators=evaluators)
-#     reports = await experiment.run_evaluations_async(get_multiturn_response)
+    for i, report in enumerate(reports):
+        print(f"\n{'='*60}")
+        print(f"Evaluator: {report.evaluator_name}")
+        print(f"{'='*60}")
+        report.run_display()
 
-#     for report in reports:
-#         report.run_display()
+        report_data = {
+            "evaluator": report.evaluator_name,
+            "overall_score": report.overall_score,
+            "scores": report.scores,
+            "test_passes": report.test_passes,
+            "reasons": report.reasons,
+            "timestamp": timestamp
+        }
 
-#     return reports
+        report_file = reports_dir / f"{report.evaluator_name}_report.json"
+        with open(report_file, "w") as f:
+            json.dump(report_data, f, indent=2)
 
-# if __name__ == "__main__":
-#     report = asyncio.run(run_async_evaluation())
+    print(f"\n--- Evaluation Complete ---")
+    print(f"Results saved to: {base_dir.absolute()}")
+
+    return reports
