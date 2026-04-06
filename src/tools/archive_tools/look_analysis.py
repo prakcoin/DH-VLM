@@ -47,7 +47,7 @@ Step 3- Respond using ONLY confirmed observations. Do not infer brand, season, o
 KB_PROMPT = """
 Role:
 Retrieve the look number, category, subcategory, primary and secondary color(s), pattern, primary and secondary outer material(s), and additional notes from the knowledge base based on the query using the retrieve tool. 
-Retrieve the look composition using the look number (either retrieved from the knowledge base, or provided by the user) and pass it in the get_look_composition tool. 
+Retrieve the look composition by passing the look number (either retrieved from the knowledge base, or provided by the user) into the get_look_composition tool. 
 If retrieve returns no results or an error, use the stop tool with reason INFO_NOT_AVAILABLE.
 If there is no look number provided, retrieve it using the query and the retrieve tool. 
 If the look number is already included in the query, there is no need to retrieve it from the knowledge base.
@@ -102,7 +102,7 @@ def get_look_composition(look_number: str):
     look_number (str): The unique identifier for the look, e.g., "1".
 
     Returns: 
-    A list of every item in the requested look, and a list of image URLs for the look.
+    A JSON containing a list of every item in the requested look, and a list of image URLs for the look.
     """
     prefix = f"{IMAGE_FOLDER}look{look_number}_"
     image_objects = s3.list_objects_v2(
@@ -126,10 +126,12 @@ def get_look_composition(look_number: str):
         content = response['Body'].read().decode('utf-8-sig')
         data = list(csv.DictReader(io.StringIO(content)))
         
-        report = f"Look {look_number} Composition:\n"
-        report += f"Items: {str(data)}\n"
-        report += f"Images: {', '.join(image_urls) if image_urls else 'No images found.'}"
-        return report
+        result = {
+            "items": data,
+            "image_filenames": image_urls
+        }
+        
+        return json.dumps(result, ensure_ascii=False)
 
     except s3.exceptions.NoSuchKey:
         logger.error(f"File not found: {target_file}")
@@ -228,12 +230,13 @@ def get_look_analysis(query: str) -> str:
     Returns:
     A structured textual analysis.
     """
-    limit_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
+    limit_retrieve = LimitToolCounts(max_tool_counts={"retrieve": 3})
+    limit_image_details = LimitToolCounts(max_tool_counts={"get_image_details": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_hook], plugins=[kb_handler])
+        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_retrieve], plugins=[kb_handler])
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], plugins=[visual_handler])
+        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], hooks=[limit_image_details], plugins=[visual_handler])
     synthesis_agent = Agent(model=bedrock_model,
         system_prompt=SYNTHESIS_PROMPT)
 
