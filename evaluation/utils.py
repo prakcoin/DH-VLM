@@ -31,6 +31,23 @@ load_secrets()
 telemetry = StrandsEvalsTelemetry().setup_in_memory_exporter()
 memory_exporter = telemetry.in_memory_exporter
 
+OUTPUT_RUBRIC = """
+Evaluate the response based on:
+1. Accuracy - Is the information correct?
+2. Completeness - Does it fully answer the question?
+3. Clarity - Is it easy to understand?
+
+Score 1.0 if all criteria are met excellently.
+Score 0.5 if some criteria are partially met.
+Score 0.0 if the response is inadequate.
+"""
+
+output_evaluator = OutputEvaluator(rubric=OUTPUT_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
+helpfulness_evaluator = HelpfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
+faithfulness_evaluator = FaithfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
+tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
+goal_evaluator = GoalSuccessRateEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
+
 async def get_multiturn_response(case: Case) -> str:
     from src.orchestration.orchestrator import Orchestrator
 
@@ -79,7 +96,8 @@ async def get_multiturn_response(case: Case) -> str:
 
 async def get_response(case: Case) -> str:
     from src.orchestration.orchestrator import Orchestrator
-
+    
+    memory_exporter.clear()
     agent = Orchestrator()
     agent.agent.trace_attributes = {
         "gen_ai.conversation.id": case.session_id,
@@ -92,34 +110,6 @@ async def get_response(case: Case) -> str:
     session = mapper.map_to_session(finished_spans, session_id=case.session_id)
 
     return {"output": str(response), "trajectory": session}
-
-def create_evaluators():
-    OUTPUT_RUBRIC = """
-    Evaluate the response based on:
-    1. Accuracy - Is the information correct?
-    2. Completeness - Does it fully answer the question?
-    3. Clarity - Is it easy to understand?
-
-    Score 1.0 if all criteria are met excellently.
-    Score 0.5 if some criteria are partially met.
-    Score 0.0 if the response is inadequate.
-    """
-
-    TRAJECTORY_RUBRIC = """
-    The trajectory should be in the correct order with all of the steps as the expected.
-    The agent should know when and what action is logical. Strictly score 0 if any step is missing.
-    """
-
-    evaluators = [
-        OutputEvaluator(rubric=OUTPUT_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0)),
-        TrajectoryEvaluator(rubric=TRAJECTORY_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0)),
-        HelpfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0)),
-        FaithfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0)),
-        ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0)),
-        GoalSuccessRateEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0))
-    ]
-
-    return evaluators
 
 def create_dataset(mode="general"):
     input_data = f"evaluation/datasets/eval_{mode}.json"
@@ -138,7 +128,8 @@ def create_dataset(mode="general"):
     
     return test_cases
 
-async def run_async_evaluation(mode, test_cases, evaluators, response_fn):
+async def run_async_evaluation(mode, test_cases, response_fn):
+    evaluators = [output_evaluator, helpfulness_evaluator, faithfulness_evaluator, tool_evaluator, goal_evaluator]
     experiment = Experiment[str, str](cases=test_cases, evaluators=evaluators)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -151,7 +142,7 @@ async def run_async_evaluation(mode, test_cases, evaluators, response_fn):
 
     experiment.to_file(base_dir / "experiment_config.json")
 
-    for i, report in enumerate(reports):
+    for report in reports:
         print(f"\n{'='*60}")
         print(f"Evaluator: {report.evaluator_name}")
         print(f"{'='*60}")
