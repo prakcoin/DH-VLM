@@ -3,20 +3,15 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from evaluation.utils import create_dataset, run_async_evaluation, get_multiturn_response, get_response
+from evaluation.utils import create_dataset, run_async_evaluation, run_evaluation
 import asyncio
-import logging
-
-logging.getLogger("strands").setLevel(logging.DEBUG)
-logging.basicConfig(
-    format="%(levelname)s | %(name)s | %(message)s",
-    handlers=[logging.StreamHandler()]
-)
 
 if __name__ == "__main__":
-    mode = "general"
-
-    response_fn = get_multiturn_response if mode == "followups" else get_response
+    mode = "followups"
 
     test_cases = create_dataset(mode=mode)
-    report = asyncio.run(run_async_evaluation(mode, test_cases, response_fn))
+
+    if mode == "followups":
+        run_evaluation(mode, test_cases)
+    else:
+        asyncio.run(run_async_evaluation(mode, test_cases))
