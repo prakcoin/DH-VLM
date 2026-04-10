@@ -47,13 +47,15 @@ def archive_assistant(query: str) -> str:
     Returns: 
     Textual response synthesized from internal archival tools.
     """
+    limit_hook = LimitToolCounts(max_tool_counts={"retrieve": 3, "get_look_analysis": 3, "get_collection_inventory": 3, "get_image_input": 3})
+
     try:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=PROMPT,
             tools=[get_collection_inventory, get_look_analysis, get_image_input, retrieve],
             plugins=[plugin, handler],
-            hooks=[LimitToolCounts(max_tool_counts={"retrieve": 3})]
+            hooks=[limit_hook]
         )
 
         response = archive_agent(query)

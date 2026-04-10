@@ -256,13 +256,14 @@ def get_image_input(query: str) -> str:
     Returns:
     An answer to the query and image.
     """
-    limit_hook = LimitToolCounts(max_tool_counts={"image_retrieve": 3})
+    limit_retrieve_hook = LimitToolCounts(max_tool_counts={"image_retrieve": 3, "get_cloudfront_url": 3})
+    limit_visual_hook = LimitToolCounts(max_tool_counts={"get_image_comparison": 3})
 
     retrieval_agent = Agent(model=bedrock_model,
-        system_prompt=IMAGE_KB_PROMPT, tools=[image_retrieve, get_cloudfront_url, stop], hooks=[limit_hook], plugins=[kb_handler])
+        system_prompt=IMAGE_KB_PROMPT, tools=[image_retrieve, get_cloudfront_url, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler])
     
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=IMAGE_READER_PROMPT, tools=[get_image_comparison, stop], plugins=[comparison_handler])
+        system_prompt=IMAGE_READER_PROMPT, tools=[get_image_comparison, stop], hooks=[limit_visual_hook], plugins=[comparison_handler])
     
     synthesis_agent = Agent(model=bedrock_model,
         system_prompt=SYNTHESIS_PROMPT)

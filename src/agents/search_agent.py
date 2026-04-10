@@ -3,6 +3,7 @@ from strands.models import BedrockModel
 from src.tools.search_tools.general_search import general_search 
 from src.tools.search_tools.listing_search import listing_search
 from src.agents.handlers import AgentSteeringHandler
+from src.agents.hooks import LimitToolCounts
 import os
 
 bedrock_model = BedrockModel(
@@ -42,12 +43,14 @@ def search_assistant(query: str) -> str:
     Returns:
     Textual response synthesizing information from web sources, including cited URLs where applicable.
     """
+    limit_hook = LimitToolCounts(max_tool_counts={"general_search": 3, "listing_search": 3})
     try:
         archive_agent = Agent(
             model=bedrock_model,
             system_prompt=SEARCH_PROMPT,
             tools=[general_search, listing_search],
-            plugins=[plugin, handler]
+            plugins=[plugin, handler],
+            hooks=[limit_hook]
         )
 
         response = archive_agent(query)

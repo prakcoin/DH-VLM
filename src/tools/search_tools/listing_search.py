@@ -229,13 +229,14 @@ def listing_search(query: str) -> str:
     """
     limit_retrieve_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
     limit_search_hook = LimitToolCounts(max_tool_counts={"tavily_search": 3})
+    limit_validate_hook = LimitToolCounts(max_tool_counts={"validate_urls": 3})
 
     kb_agent = Agent(model=bedrock_model,
         system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler])
     google_agent = Agent(model=bedrock_model,
         system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler])
     aggregator_agent = Agent(model=bedrock_model,
-        system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], plugins=[aggregator_handler])
+        system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], hooks=[limit_validate_hook], plugins=[aggregator_handler])
 
     kb_results = kb_agent(f"Retrieve relevant information based on this query. " 
                           f"Query: {query}")
