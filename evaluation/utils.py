@@ -42,11 +42,11 @@ Score 0.5 if some criteria are partially met.
 Score 0.0 if the response is inadequate.
 """
 
-output_evaluator = OutputEvaluator(rubric=OUTPUT_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=6000))
-helpfulness_evaluator = HelpfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=6000))
-faithfulness_evaluator = FaithfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=6000))
-tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=6000))
-goal_evaluator = GoalSuccessRateEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=6000))
+output_evaluator = OutputEvaluator(rubric=OUTPUT_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
+helpfulness_evaluator = HelpfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
+faithfulness_evaluator = FaithfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
+tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
+goal_evaluator = GoalSuccessRateEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
 
 def get_multiturn_response(case: Case) -> str:
     from src.orchestration.orchestrator import Orchestrator
@@ -68,6 +68,7 @@ def get_multiturn_response(case: Case) -> str:
     all_spans = []
     user_message = case.input
     while simulator.has_next():
+        memory_exporter.clear()
         try:
             agent_response = agent.ask(user_message)
             agent_message = str(agent_response)
@@ -83,7 +84,12 @@ def get_multiturn_response(case: Case) -> str:
             "message": agent_message
         })
 
-        user_result = simulator.act(agent_message)
+        try:
+            user_result = simulator.act(agent_message)
+        except Exception as e:
+            print(f"Simulator failed on turn {turn_count} with agent message: {agent_message} and user message: {user_message}")
+            break
+
         if user_result.structured_output is None:
             print(f"Simulator hallucinated invalid JSON on turn {turn_count} !!!")
             break
