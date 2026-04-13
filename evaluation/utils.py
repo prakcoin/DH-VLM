@@ -9,6 +9,13 @@ import sys
 import os
 import json
 import boto3
+import logging
+
+logging.getLogger("strands").setLevel(logging.DEBUG)
+logging.basicConfig(
+    format="%(levelname)s | %(name)s | %(message)s",
+    handlers=[logging.StreamHandler()]
+)
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
@@ -45,7 +52,15 @@ Score 0.0 if the response is inadequate.
 output_evaluator = OutputEvaluator(rubric=OUTPUT_RUBRIC, model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
 helpfulness_evaluator = HelpfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
 faithfulness_evaluator = FaithfulnessEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
-tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
+TOOL_SELECTION_RUBRIC = """
+You are evaluating tool selection accuracy for a multi-agent system built around the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection.
+The system has two tools available at the orchestrator level:
+
+1. archive_assistant — Use for queries about the collection itself: specific items, looks, materials, construction details, recurring motifs, item counts, collection-wide analysis, item variations, and knowledge base retrieval. This is the correct tool for the vast majority of queries about this collection.
+2. search_assistant — Use for for queries requiring live web search: marketplace listings, resale prices, external historical context, or information not documented in the knowledge base (e.g. music, cultural references, press coverage).
+"""
+
+tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000), system_prompt=TOOL_SELECTION_RUBRIC)
 goal_evaluator = GoalSuccessRateEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000))
 
 def get_multiturn_response(case: Case) -> str:
