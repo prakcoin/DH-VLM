@@ -26,13 +26,16 @@ def general_search(query: str) -> str:
     Raw JSON search results from the search API. 
     Return "Research failed." if the request is unsuccessful.
     """
+    collection_context = "Dior Homme AW04"
+    enriched_query = f"{collection_context} {query}"
+
     url = "https://api.tavily.com/search"
     headers = {"Content-Type": "application/json"}
     payload = {
         "api_key": TAVILY_API_KEY,
-        "query": query,
+        "query": enriched_query,
         "search_depth": "advanced",
-        "max_results": 3
+        "max_results": 5
     }
 
     try:

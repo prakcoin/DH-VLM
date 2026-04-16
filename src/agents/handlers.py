@@ -107,19 +107,6 @@ Please provide a new response."""
                 return Guide(reason="The look number must be between 1-45 inclusive, as there are only 45 looks in the collection.")
 
         if tool_name == "get_image_details":
-            kb_success = any(c["tool_name"] == "retrieve" and c["status"] == "success" for c in ledger)
-            lc_success = any(c["tool_name"] == "get_look_composition" and c["status"] == "success" for c in ledger)
-
-            if not kb_success or not lc_success:
-                missing = []
-                if not kb_success: missing.append("'retrieve' to retrieve relevant metadata")
-                if not lc_success: missing.append("'get_look_composition' to get the full look breakdown")
-                
-                return Guide(
-                    reason=f"Prerequisite tools missing. You must successfully call {', and '.join(missing)} "
-                        "before using this tool."
-                )
-            
             filenames = args.get("image_filenames")
 
             if not isinstance(filenames, list):
@@ -133,17 +120,8 @@ Please provide a new response."""
 
             valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp")
             for f in filenames:
-                if not f or not os.path.exists(str(f)):
-                    return Guide(reason="Image path does not exist.")
-
                 if not str(f).lower().endswith(valid_exts):
                     return Guide(reason=f"Invalid extension. Use: {', '.join(valid_exts)}")
-
-                try:
-                    with Image.open(f) as img:
-                        img.verify()
-                except Exception:
-                    return Guide(reason="The file is corrupted or not a valid image.")
 
         # --- WORKFLOW 2: IMAGE VALIDATION ---
         if tool_name == "image_retrieve":
@@ -168,15 +146,6 @@ Please provide a new response."""
                 return Guide(reason="Prerequisite tool missing. You must successfully call 'image_retrieve' to get images before using this tool.")
 
         if tool_name == "get_image_comparison":
-            ir_success = any(c["tool_name"] == "image_retrieve" and c["status"] == "success" for c in ledger)
-            gc_success = any(c["tool_name"] == "get_cloudfront_url" and c["status"] == "success" for c in ledger)
-
-            if not ir_success or not gc_success:
-                if not ir_success:
-                    return Guide(reason="Prerequisite tool missing. You must successfully call 'image_retrieve' to get images before using this tool.")
-                else:
-                    return Guide(reason="Prerequisite tool missing. You must sucessfully call 'get_cloudfront_url' to make retrieved images accessible before using this tool.")
-
             if args.get("query_filename") == args.get("retrieved_filename"):
                 return Guide(reason="Comparison requires two different images. Duplicate images were provided.")
 
@@ -198,10 +167,6 @@ Please provide a new response."""
 
         # --- WORKFLOW 3: SEARCH LOGIC ---
         if tool_name == "tavily_search":
-            kb_success = any(c["tool_name"] == "retrieve" and c["status"] == "success" for c in ledger)
-            if not kb_success:
-                return Guide(reason="Prerequisite tool missing. You must call 'retrieve' to get metadata before using this tool.")
-
             query = args.get("query", "").lower()
             forbidden = ["dior", "homme", "aw04", "autumn", "winter", "2004"]
             if any(word in query for word in forbidden):

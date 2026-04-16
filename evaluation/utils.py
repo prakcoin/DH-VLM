@@ -65,11 +65,13 @@ faithfulness_evaluator = FaithfulnessEvaluator(model=BedrockModel(model_id="us.a
 TOOL_SELECTION_RUBRIC = """
 You are evaluating tool selection accuracy for a multi-agent fashion archive assistant for the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection.
 
-Orchestrator-level tools:
-1. archive_assistant — For any query about the collection itself: specific items, looks, materials, construction, motifs, counts, variations, and knowledge base retrieval. Correct for the vast majority of queries.
-2. search_assistant — For queries requiring live web data: marketplace listings, resale prices, or information not in the knowledge base (e.g. cultural references, press coverage).
+The knowledge base contains ONLY runway look data: per-garment entries with item name, reference code, look number, category, subcategory, colors, pattern, materials, construction notes, and image filenames. It does NOT contain pricing, cultural context, editorial analysis, celebrity associations, hardware brand details, soundtracks, or design inspirations.
 
-A tool call is justified if it is the most appropriate tool for the query given the context. Consider both tool choice and timing relative to what has already been retrieved.
+Orchestrator-level tools:
+1. archive_assistant — For queries answerable from the runway metadata: specific items, look compositions, garment descriptions, materials, colors, reference codes, counts, and collection-wide inventory.
+2. search_assistant — For any query requiring information beyond the runway metadata, including: marketplace listings, resale prices, who wore a piece, hardware/component brands (e.g. zipper manufacturer), design inspirations, cultural impact, soundtracks, press coverage, or editorial context.
+
+A tool call is correct if it is the most appropriate tool for the query. Using archive_assistant for a question whose answer is outside the runway metadata (e.g. zipper brand, famous wearer, soundtrack, inspirations) is incorrect even if the question is about the collection.
 """
 
 tool_evaluator = ToolSelectionAccuracyEvaluator(model=BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=12000), system_prompt=TOOL_SELECTION_RUBRIC)

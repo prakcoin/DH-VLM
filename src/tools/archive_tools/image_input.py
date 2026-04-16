@@ -261,13 +261,13 @@ def get_image_input(query: str) -> str:
     limit_visual_hook = LimitToolCounts(max_tool_counts={"get_image_comparison": 3})
 
     retrieval_agent = Agent(model=bedrock_model,
-        system_prompt=IMAGE_KB_PROMPT, tools=[image_retrieve, get_cloudfront_url, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler])
-    
+        system_prompt=IMAGE_KB_PROMPT, tools=[image_retrieve, get_cloudfront_url, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler], callback_handler=None)
+
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=IMAGE_READER_PROMPT, tools=[get_image_comparison, stop], hooks=[limit_visual_hook], plugins=[comparison_handler])
-    
+        system_prompt=IMAGE_READER_PROMPT, tools=[get_image_comparison, stop], hooks=[limit_visual_hook], plugins=[comparison_handler], callback_handler=None)
+
     synthesis_agent = Agent(model=bedrock_model,
-        system_prompt=SYNTHESIS_PROMPT)
+        system_prompt=SYNTHESIS_PROMPT, callback_handler=None)
 
     kb_results = retrieval_agent(f"From the image in the query, retrieve the best match image(s). "
                                  f"Query: {query}.")

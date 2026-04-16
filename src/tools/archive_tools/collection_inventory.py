@@ -1,5 +1,6 @@
 from strands import tool, Agent
 from strands.models import BedrockModel
+from src.agents.hooks import LimitToolCounts
 import boto3
 import csv
 import io
@@ -133,6 +134,7 @@ def get_collection_inventory(query: str) -> str:
         A synthesized answer to the query drawn from the full collection.
     """
     model = BedrockModel(model_id="us.amazon.nova-2-lite-v1:0", temperature=0.0, max_tokens=4000)
+    limit_hook = LimitToolCounts(max_tool_counts={"execute_pandas_expression": 5})
     agent = Agent(
         model=model,
         system_prompt=f"""You answer questions about the Dior Homme Autumn/Winter 2004 "Victim of the Crime" collection.
@@ -146,6 +148,8 @@ To answer a question:
 2. Call execute_pandas_expression with that expression
 3. Use the exact result to provide a complete, accurate answer — do not recount or second-guess the numbers
 4. For motif or theme questions, name the specific recurring items (e.g. 'Suede Moto Boot', 'Bandana Bracelet') — do not abstract them into generic category labels like 'belts' or 'leather items'. Also consider recurring design features (e.g. leather elbow patches, whiskering, striped patterns) found in Additional Notes and Pattern, not just recurring item names""",
-        tools=[execute_pandas_expression]
+        tools=[execute_pandas_expression],
+        hooks=[limit_hook],
+        callback_handler=None
     )
     return str(agent(query))

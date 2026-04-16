@@ -51,7 +51,8 @@ def search_assistant(query: str) -> str:
             system_prompt=SEARCH_PROMPT,
             tools=[general_search, listing_search],
             plugins=[plugin, handler],
-            hooks=[limit_hook]
+            hooks=[limit_hook],
+            callback_handler=None
         )
 
         response = archive_agent(query)

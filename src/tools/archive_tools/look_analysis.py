@@ -37,13 +37,13 @@ Perform grounded, multi-image visual analysis focusing on technical construction
 Guidelines:
 Use all provided images collectively. If a detail is visible in only one image, it is present. In case of conflict, prioritize the highest-resolution view.
 Step 1- List all visible items (top to bottom) including Type, Color (single word), Construction details, Position, and Hardware. Use "unclear due to resolution" for uncertain details.
-Step 2- Perform a focused scan of the following: 
+Step 2- Perform a focused scan of the following:
 - Jewelry: Scan wrists, fingers, and neck.
 - Layers: Count neckline and sleeve layers separately.
-- Closures: Describe the mechanism before naming it.
+- Closures: Examine the full front, back, and sides of each garment. Describe any visible hardware (buttons, zippers, hooks, snaps). If no hardware is visible on a garment that would typically require a closure, note this explicitly — the closure may be concealed (e.g., fly front, hidden placket, concealed buttons). Do not report "no closure"; instead reason from what is and is not visible.
 - Lapels: Describe the geometry/shape before classifying.
-- Hems: Describe folds, stacking, or raw edge appearance.
-Step 3- Respond using ONLY confirmed observations. Do not infer brand, season, or intent. If evidence is insufficient, state it clearly.
+- Hems: Look for fabric folded or rolled upward, raw edges, or contrast lining visible at the hem line. Describe whether the hem appears finished, turned up, or structurally altered. Note any visible inner seams or contrast lining at the hem edge.
+Step 3- For confirmed details, state them directly. For details where evidence is ambiguous or partially visible, state your best assessment and note the limitation. Only use "unclear due to resolution" when no reasonable inference can be made. Do not infer brand, season, or intent.
 """
 
 KB_PROMPT = """
@@ -149,7 +149,7 @@ def parse_filenames_from_string(filenames_str):
     return urls
 
 @tool
-def get_image_details(image_filenames, query: str):
+def get_image_details(image_filenames: list[str], query: str):
     """
     Perform grounded visual analysis on one or more look images.
 
@@ -236,11 +236,11 @@ def get_look_analysis(query: str) -> str:
     limit_image_details = LimitToolCounts(max_tool_counts={"get_image_details": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_retrieve], plugins=[kb_handler])
+        system_prompt=KB_PROMPT, tools=[retrieve, get_look_composition, stop], hooks=[limit_retrieve], plugins=[kb_handler], callback_handler=None)
     visual_agent = Agent(model=bedrock_model,
-        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], hooks=[limit_image_details], plugins=[visual_handler])
+        system_prompt=VISUAL_PROMPT, tools=[get_image_details, stop], hooks=[limit_image_details], plugins=[visual_handler], callback_handler=None)
     synthesis_agent = Agent(model=bedrock_model,
-        system_prompt=SYNTHESIS_PROMPT)
+        system_prompt=SYNTHESIS_PROMPT, callback_handler=None)
 
     kb_results = kb_agent(f"Retrieve the look number and composition based on this query: "
                           f"Query: {query}.")

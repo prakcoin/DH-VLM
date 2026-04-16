@@ -69,7 +69,7 @@ aggregator_handler = AgentSteeringHandler(
     You are providing guidance to ensure proper formatting of information.
 
     Guidance:
-    Filter based on all of the ground truth provided by the knowledge base EXCEPT for the reference code. If a search result doesn't match the item based in the knowledge base, filter it out.
+    Filter based on all of the ground truth provided by the knowledge base. If a known reference code is present in a listing, treat it as a strong positive match. If a search result doesn't match the item based on the knowledge base, filter it out.
     If a result is simply missing information that the knowledge base contains, DO NOT filter it out immediately. Treat "missing info" as a potential match unless it is proven wrong by other details.
     Discard replicas, inspired items, or unrelated pieces.
     Provide listing URLs. If no URLs are provided, skip validation and state that no results were found.
@@ -110,7 +110,7 @@ def validate_urls(urls: list[str]) -> dict:
         
             results["valid_listings"].append({
                 "url": item['url'],
-                "content": content[:3500],
+                "content": content[:6000],
                 "title": item.get("title")
             })
             
@@ -139,7 +139,7 @@ def tavily_search(query: str) -> str:
     regions = [
         {
             "country": "united states",
-            "domains": ["grailed.com", "ebay.com", "vestiairecollective.com", "therealreal.com"],
+            "domains": ["grailed.com", "ebay.com", "vestiairecollective.com", "therealreal.com", "zentmpl.com", "1stdibs.com"],
             "query_variants": [
                 f"Dior {query}", 
                 f"Dior AW04 {query}", 
@@ -233,11 +233,11 @@ def listing_search(query: str) -> str:
     limit_validate_hook = LimitToolCounts(max_tool_counts={"validate_urls": 3})
 
     kb_agent = Agent(model=bedrock_model,
-        system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler])
+        system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler], callback_handler=None)
     google_agent = Agent(model=bedrock_model,
-        system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler])
+        system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler], callback_handler=None)
     aggregator_agent = Agent(model=bedrock_model,
-        system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], hooks=[limit_validate_hook], plugins=[aggregator_handler])
+        system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], hooks=[limit_validate_hook], plugins=[aggregator_handler], callback_handler=None)
 
     kb_results = kb_agent(f"Retrieve relevant information based on this query. " 
                           f"Query: {query}")

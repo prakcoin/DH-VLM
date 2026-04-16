@@ -5,7 +5,13 @@ allowed-tools: listing_search
 ---
 # Listing Search
 
-This skill is for searching for current and past listings. Pass the input to the listing_search tool, which consists of a three agent workflow: 
+Use this skill for:
+- Current or past marketplace listings for any item in the collection
+- Resale prices or pricing guidance for any collection piece
+- Hardware or construction details sourced from listing descriptions (e.g. zipper brand, fabric mill)
+- Availability or provenance questions that require real-world data
+
+This skill passes the input to the listing_search tool, which consists of a three-agent workflow: 
 
 1. Pass the query into the first agent, which uses the retrieve tool to retrieve relevant information to be used in later steps. 
 2. Pass the knowledge base results to the second agent, in order to search for current and past listings using the query and knowledge base results.
