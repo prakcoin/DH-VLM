@@ -27,6 +27,17 @@ curl http://localhost:8080/ping
 uv run python evaluation/evaluate.py --mode aggregation
 uv run python evaluation/evaluate.py --mode general
 uv run python evaluation/evaluate.py --mode followups
+
+# Startup order: (1) collector → (2) server → (3) queries
+
+# 1. Run OpenTelemetry trace collector
+# Uses config.yaml in the project root — exports traces to AWS X-Ray and logs to CloudWatch via SigV4 auth.
+docker run -p 4317:4317 -p 4318:4318 -v $(pwd)/config.yaml:/etc/otelcol/config.yaml -e AWS_ACCESS_KEY_ID=$(aws configure get aws_access_key_id) -e AWS_SECRET_ACCESS_KEY=$(aws configure get aws_secret_access_key) -e AWS_REGION=us-east-1 otel/opentelemetry-collector-contrib:0.149.0
+
+# 2. Run the server (dev)
+# (see above)
+
+# 3. Then send queries
 ```
 
 ## Architecture
