@@ -11,11 +11,12 @@ Use this skill for:
 - Hardware or construction details sourced from listing descriptions (e.g. zipper brand, fabric mill)
 - Availability or provenance questions that require real-world data
 
-This skill passes the input to the listing_search tool, which consists of a three-agent workflow: 
+This skill passes the input to the listing_search tool, which consists of a four-agent workflow:
 
-1. Pass the query into the first agent, which uses the retrieve tool to retrieve relevant information to be used in later steps. 
-2. Pass the knowledge base results to the second agent, in order to search for current and past listings using the query and knowledge base results.
-3. Finally, pass both the search and knowledge base results into the third agent, then filter the search results based on the knowledge base results.
+1. Pass the query into the first agent, which uses the retrieve tool to retrieve relevant knowledge base metadata (reference codes, colors, materials) to be used in later steps.
+2. Run a multi-variant web search across US and Japan marketplaces using the query.
+3. Pass the search and knowledge base results into the third agent, which filters out irrelevant results and validates URLs.
+4. Pass the filtered results into the final agent to synthesize a direct, concise answer.
 
 ## Guidelines
 Discard replicas, inspired items, or unrelated pieces.

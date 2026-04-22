@@ -167,12 +167,4 @@ Please provide a new response."""
             if not retrieved_filename or not str(retrieved_filename).lower().endswith(valid_exts):
                 return Guide(reason=f"Invalid or missing retrieved filename. Use: {', '.join(valid_exts)}")
 
-        # --- WORKFLOW 3: SEARCH LOGIC ---
-        if tool_name == "tavily_search":
-            query = args.get("query", "").lower()
-            forbidden = ["dior", "homme", "aw04", "autumn", "winter", "2004"]
-            if any(word in query for word in forbidden):
-                return Guide(reason="Remove brand names/seasons from tool input. Use core subject only.")
-
-
         return Proceed(reason="Tool input matches workflow requirements.")

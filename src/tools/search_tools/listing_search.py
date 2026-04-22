@@ -41,27 +41,21 @@ kb_handler = AgentSteeringHandler(
     """
 )
 
-SEARCH_PROMPT = """
-Role:
-Find current and past listings for items using the tavily_search tool.
-If the search returns no results, use the stop tool with reason RESULTS_NOT_AVAILABLE.
-"""
-
-search_handler = AgentSteeringHandler(
-    system_prompt="""
-    You are providing guidance to ensure proper formatting of information.
-
-    Guidance: 
-    Make sure a list of search results is retrieved, and that the output is not off topic.
-    
-    When the tools return their responses, evaluate the text and deliver the final response directly to the user.
-    """
-)
-
 AGGREGATOR_PROMPT = """
 Role:
 Aggregate all web search results and filter out irrelevant or redundant results.
 You must pass all URLs from the search results into the validate_urls tool to help filter out any non-functional URLs.
+"""
+
+SYNTHESIS_PROMPT = """
+Role:
+Synthesize a final answer based on the filtered listings and knowledge base information.
+
+Guidelines:
+Answer the query directly and concisely.
+If listings were found, summarise them clearly (source, price, condition where available).
+If no listings were found, state this directly.
+Do not speculate beyond what the filtered results contain.
 """
 
 aggregator_handler = AgentSteeringHandler(
@@ -69,13 +63,13 @@ aggregator_handler = AgentSteeringHandler(
     You are providing guidance to ensure proper formatting of information.
 
     Guidance:
-    Filter based on all of the ground truth provided by the knowledge base. If a known reference code is present in a listing, treat it as a strong positive match. If a search result doesn't match the item based on the knowledge base, filter it out.
+    Filter based on all of the ground truth provided by the knowledge base EXCEPT for the reference code. If a known reference code is present in a listing, treat it as a strong positive match, but never filter out a listing solely because a reference code is absent. If a search result doesn't match the item based on the knowledge base, filter it out.
     If a result is simply missing information that the knowledge base contains, DO NOT filter it out immediately. Treat "missing info" as a potential match unless it is proven wrong by other details.
     Discard replicas, inspired items, or unrelated pieces.
     Provide listing URLs. If no URLs are provided, skip validation and state that no results were found.
     If there are no relevant results, and no results match what is being asked, then state this and return no results.
-        
-    When the tools return their responses, evaluate the text and deliver the final response directly to the user.
+
+    When the tools return their responses, return the filtered listings as-is for downstream synthesis — do not compose a final answer.
     """
 )
 
@@ -119,7 +113,6 @@ def validate_urls(urls: list[str]) -> dict:
 
     return results
 
-@tool
 def tavily_search(query: str) -> str:
     """
     Perform a web search for active listings, market data, or reference verification.
@@ -139,7 +132,7 @@ def tavily_search(query: str) -> str:
     regions = [
         {
             "country": "united states",
-            "domains": ["grailed.com", "ebay.com", "vestiairecollective.com", "therealreal.com", "zentmpl.com", "1stdibs.com"],
+            "domains": ["grailed.com", "ebay.com", "vestiairecollective.com", "therealreal.com", "1stdibs.com"],
             "query_variants": [
                 f"Dior {query}", 
                 f"Dior AW04 {query}", 
@@ -229,27 +222,30 @@ def listing_search(query: str) -> str:
     Filtered search results.
     """
     limit_retrieve_hook = LimitToolCounts(max_tool_counts={"retrieve": 3})
-    limit_search_hook = LimitToolCounts(max_tool_counts={"tavily_search": 3})
     limit_validate_hook = LimitToolCounts(max_tool_counts={"validate_urls": 3})
 
     kb_agent = Agent(model=bedrock_model,
         system_prompt=KB_PROMPT, tools=[retrieve, stop], hooks=[limit_retrieve_hook], plugins=[kb_handler], callback_handler=None)
-    google_agent = Agent(model=bedrock_model,
-        system_prompt=SEARCH_PROMPT, tools=[tavily_search, stop], hooks=[limit_search_hook], plugins=[search_handler], callback_handler=None)
     aggregator_agent = Agent(model=bedrock_model,
         system_prompt=AGGREGATOR_PROMPT, tools=[validate_urls], hooks=[limit_validate_hook], plugins=[aggregator_handler], callback_handler=None)
+    synthesis_agent = Agent(model=bedrock_model,
+        system_prompt=SYNTHESIS_PROMPT, callback_handler=None)
 
-    kb_results = kb_agent(f"Retrieve relevant information based on this query. " 
+    kb_results = kb_agent(f"Retrieve relevant information based on this query. "
                           f"Query: {query}")
     if not str(kb_results).strip():
         return "No matching AW04 metadata found in the knowledge base."
-    search_results = google_agent(f"Perform a web search based on the query and relevant knowledge base information. "
-                                  f"Query: {query}. " 
-                                  f"Knowledge base results: {str(kb_results)}.")
-    if not str(search_results).strip():
+    search_results = tavily_search(query)
+    if not search_results or search_results == "No results found.":
         return "No Dior Homme AW04 listings were found matching your criteria."
-    response = aggregator_agent(f"Filter out any irrelevant results from the search results, basing the relevancy on the query and knowledge base results. " 
-                                f"Search results: {str(search_results)}. " 
-                                f"Query: {query}. "
-                                f"Knowledge base results: {str(kb_results)}.")
+    aggregator_results = aggregator_agent(f"Filter out any irrelevant results from the search results, basing the relevancy on the query and knowledge base results. "
+                                         f"Search results: {str(search_results)}. "
+                                         f"Query: {query}. "
+                                         f"Knowledge base results: {str(kb_results)}.")
+    if not str(aggregator_results).strip():
+        return "No Dior Homme AW04 listings were found matching your criteria."
+    response = synthesis_agent(f"Synthesize a final answer for the query based on the filtered listings. "
+                               f"Query: {query}. "
+                               f"Filtered listings: {str(aggregator_results)}. "
+                               f"Knowledge base results: {str(kb_results)}.")
     return response
