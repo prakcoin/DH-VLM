@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING, Any, Literal, cast
 from pydantic import BaseModel, Field
 from strands import Agent
-from strands.vended_plugins.steering import Guide, ModelSteeringAction, Proceed, SteeringHandler, Interrupt
+from strands.vended_plugins.steering import Guide, ModelSteeringAction, Proceed, SteeringHandler
+from strands.vended_plugins.steering.context_providers.ledger_provider import LedgerProvider
 from strands.models import BedrockModel
 from strands.types.content import Message
 from PIL import Image
@@ -26,7 +27,7 @@ class AgentSteeringHandler(SteeringHandler):
 
     def __init__(self, system_prompt) -> None:
         """Initialize the model output steering handler."""
-        super().__init__()
+        super().__init__(context_providers=[LedgerProvider()])
 
         self._system_prompt = system_prompt
 
@@ -149,21 +150,22 @@ Please provide a new response."""
             if args.get("query_filename") == args.get("retrieved_filename"):
                 return Guide(reason="Comparison requires two different images. Duplicate images were provided.")
 
-            path_fields = ["image_path", "query_filename", "retrieved_filename"]
             valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp")
-            for field in path_fields:
-                val = args.get(field)
-                if not val or not os.path.exists(str(val)):
-                    return Guide(reason="Image path does not exist.")
 
-                if not str(val).lower().endswith(valid_exts):
-                    return Guide(reason=f"Invalid extension. Use: {', '.join(valid_exts)}")
+            query_filename = args.get("query_filename")
+            if not query_filename or not os.path.exists(str(query_filename)):
+                return Guide(reason="Query image path does not exist.")
+            if not str(query_filename).lower().endswith(valid_exts):
+                return Guide(reason=f"Invalid extension. Use: {', '.join(valid_exts)}")
+            try:
+                with Image.open(query_filename) as img:
+                    img.verify()
+            except Exception:
+                return Guide(reason="The file is corrupted or not a valid image.")
 
-                try:
-                    with Image.open(val) as img:
-                        img.verify()
-                except Exception:
-                    return Guide(reason="The file is corrupted or not a valid image.")
+            retrieved_filename = args.get("retrieved_filename")
+            if not retrieved_filename or not str(retrieved_filename).lower().endswith(valid_exts):
+                return Guide(reason=f"Invalid or missing retrieved filename. Use: {', '.join(valid_exts)}")
 
         # --- WORKFLOW 3: SEARCH LOGIC ---
         if tool_name == "tavily_search":
